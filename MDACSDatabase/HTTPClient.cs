@@ -317,6 +317,7 @@ namespace MDACS.Server
 
             while (true)
             {
+                Console.WriteLine("###### Handling the next request. ######");
                 // Need a way for this to block (await) until the body has been completely
                 // read. This logic could be implemented inside the decoder.
                 var line_header = await decoder.ReadHeader();
@@ -335,25 +336,27 @@ namespace MDACS.Server
 
                 Console.WriteLine("Got header.");
 
+                Task body_reading_task;
+
                 if (header.ContainsKey("content-length"))
                 {
                     Console.WriteLine("Got content-length.");
                     // Content length specified body follows.
                     long content_length = (long)Convert.ToUInt32(header["content-length"]);
 
-                    body = await decoder.ReadBody(HTTPDecoderBodyType.ContentLength(content_length));
+                    (body, body_reading_task) = await decoder.ReadBody(HTTPDecoderBodyType.ContentLength(content_length));
                 }
                 else if (header.ContainsKey("transfer-encoding"))
                 {
                     Console.WriteLine("Got chunked.");
                     // Chunked encoded body follows.
-                    body = await decoder.ReadBody(HTTPDecoderBodyType.ChunkedEncoding());
+                    (body, body_reading_task) = await decoder.ReadBody(HTTPDecoderBodyType.ChunkedEncoding());
                 }
                 else
                 {
                     Console.WriteLine("Got no body.");
                     // No body follows. (Not using await to allow pipelining.)
-                    body = await decoder.ReadBody(HTTPDecoderBodyType.NoBody());
+                    (body, body_reading_task) = await decoder.ReadBody(HTTPDecoderBodyType.NoBody());
                 }
 
                 bool close_connection = true;
@@ -363,8 +366,6 @@ namespace MDACS.Server
                     close_connection = false;
                 }
 
-                // Currently, pipelining is not enabled.
-
                 var phe = new ProxyHTTPEncoder(encoder, close_connection);
 
                 q.Enqueue(phe);
@@ -372,8 +373,17 @@ namespace MDACS.Server
                 qchanged.Set();
 
                 Console.WriteLine("Allowing handling of request.");
+
                 await HandleRequest(header, body, phe);
 
+                // We must wait until both the HandleRequest returns and
+                // that the task, if any, which is reading the body also
+                // completes.
+                if (body_reading_task != null)
+                {
+                    // Do not block while waiting.
+                    await body_reading_task;
+                }
             }
         }
     }

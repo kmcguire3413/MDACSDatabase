@@ -115,7 +115,7 @@ namespace MDACS.Server
                 if (line_end_pos > -1)
                 {
                     var line = await TakeChunkPrefix(line_end_pos + 1);
-                    var line_utf8_str = Encoding.UTF8.GetString(line).Trim();
+                    var line_utf8_str = Encoding.UTF8.GetString(line).TrimEnd();
 
                     if (line_utf8_str.Length == 0)
                     {
@@ -151,16 +151,20 @@ namespace MDACS.Server
 
             do
             {
-                var cnt = await s.ReadAsync(buf, pos, buf.Length - pos);
-
-                if (cnt < 1)
+                // Do not force a transport read when a line may already exist in the provided slack.
+                if (Array.IndexOf(buf, (byte)10) < 0)
                 {
-                    throw new Exception("Error when reading line out of stream.");
+                    var cnt = await s.ReadAsync(buf, pos, buf.Length - pos);
+
+                    if (cnt < 1)
+                    {
+                        throw new Exception("Error when reading line out of stream.");
+                    }
+
+                    pos += cnt;
                 }
 
-                pos += cnt;
-
-                ndx = Array.IndexOf(buf, 10);
+                ndx = Array.IndexOf(buf, (byte)10);
             } while (ndx < 0);
 
             var line = Encoding.UTF8.GetString(buf, 0, ndx);
@@ -169,27 +173,34 @@ namespace MDACS.Server
             return (buf, pos - (ndx + 1), line);
         }
 
-        public async Task<Stream> ReadBody(HTTPDecoderBodyType body_type)
+        public async Task<(Stream, Task)> ReadBody(HTTPDecoderBodyType body_type)
         {
-            var os = new BiAccessChunkedStream(1024 * 16);
+            var os = new DoubleEndedStream();
+            Task spawned_task;
 
             switch (body_type.type)
             {
                 case HTTPDecoderBodyType.MyType.NoBody:
-                    return os as Stream;
+                    os.Dispose();
+                    return (os as Stream, null);
                 case HTTPDecoderBodyType.MyType.ChunkedEncoding:
 #pragma warning disable 4014
-                    Task.Run(async () =>
+                    spawned_task = Task.Run(async () =>
                     {
                         byte[] _slack = null;
                         int _slack_size = 0;
 
                         do
                         {
+                            Console.WriteLine("$$Trying to read another line.");
                             var (slack, slack_size, line) = await ReadLineOutOfStream(256, _slack, _slack_size);
 
                             _slack = slack;
                             _slack_size = slack_size;
+
+                            line = line.TrimEnd();
+
+                            Console.WriteLine("HTTPDecoder.ChunkedDecoder: line={0}", line);
 
                             if (line.Length == 0)
                             {
@@ -213,7 +224,7 @@ namespace MDACS.Server
 
                                 Array.Copy(_slack, 0, tmpbuf, 0, chunk_size);
 
-                                var r2 = await os.AddChunk(tmpbuf, (int)chunk_size);
+                                await os.WriteAsync(tmpbuf, 0, (int)chunk_size);
 
                                 if (chunk_size < _slack_size)
                                 {
@@ -231,34 +242,51 @@ namespace MDACS.Server
                             else
                             {
                                 // Normal case where chunk is larger than the slack size.
-                                var r2 = await os.AddChunk(_slack, _slack_size);
+                                if (_slack_size > 0)
+                                {
+                                    await os.WriteAsync(_slack, 0, _slack_size);
+                                    chunk_size -= _slack_size;
+                                }
 
                                 var tmp = new byte[1024 * 4];
 
                                 // Now, read the remaining.
                                 do
                                 {
-                                    var cnt = await s.ReadAsync(tmp, 0, (int)Math.Min(chunk_size, tmp.Length));
-
-                                    if (cnt < 1)
+                                    try
                                     {
-                                        break;
+                                        Console.WriteLine("$$Reading async");
+                                        var cnt = await s.ReadAsync(tmp, 0, (int)Math.Min(chunk_size, tmp.Length));
+                                        Console.WriteLine("$$Done reading async");
+
+                                        if (cnt < 1)
+                                        {
+                                            break;
+                                        }
+
+                                        chunk_size -= cnt;
+
+                                        Console.WriteLine("$$Writing async into os stream.");
+                                        await os.WriteAsync(tmp, 0, cnt);
+                                        Console.WriteLine("$$Done writing async into os stream.");
                                     }
-
-                                    chunk_size -= cnt;
-
-                                    var r3 = await os.AddChunk(tmp, cnt);
+                                    catch (Exception ex)
+                                    {
+                                        Console.WriteLine("{0}", ex);
+                                    }
+                                    Console.WriteLine("$$okay here at point of exiting loop");
                                 } while (chunk_size > 0);
+
+                                Console.WriteLine("$$relooping");
                             }
                         } while (true);
-
-                        var r4 = await os.AddChunk(null, 0);
+                        os.Dispose();
                     });
 #pragma warning restore 4014
-                    return os;
+                    return (os, spawned_task);
                 case HTTPDecoderBodyType.MyType.ContentLength:
 #pragma warning disable 4014
-                    Task.Run(async () =>
+                    spawned_task = Task.Run(async () =>
                     {
                         var read_need = body_type.size;
 
@@ -274,15 +302,17 @@ namespace MDACS.Server
 
                             read_need -= cnt;
 
-                            var result = await os.AddChunk(buf, cnt);
+                            await os.WriteAsync(buf, 0, cnt);
                             // Get unstuck by having result be false from a timeout inside AddChunk then
                             // just free wheel the data into the void and continue onward.
                         } while (read_need > 0);
+                        os.Dispose();
                     });
 #pragma warning restore 4014
-                    return os;
+                    return (os, spawned_task);
                 default:
-                    return os;
+                    os.Dispose();
+                    return (os, null);
             }
         }
     }

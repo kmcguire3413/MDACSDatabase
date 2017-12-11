@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace MDACS.Server
 {
-    class DoubleEndedStream : Stream
+    class DoubleEndedStream : Stream, IDisposable
     {
         class Chunk
         {
@@ -52,8 +52,14 @@ namespace MDACS.Server
             throw new NotImplementedException();
         }
 
-        public override void Close()
+        protected override void Dispose(bool disposing)
         {
+            if (!disposing)
+            {
+                base.Dispose(disposing);
+                return;
+            }
+
 #if DOUBLE_ENDED_STREAM_DEBUG
             Console.WriteLine("{0}.Close: Closing stream.", this);
 #endif
@@ -64,11 +70,14 @@ namespace MDACS.Server
             chunk.actual = 0;
             chunk.offset = 0;
 
-            chunks.Enqueue(chunk);
+            lock (chunks)
+            {
+                chunks.Enqueue(chunk);
+            }
 
             wh.Release();
 
-            base.Close();
+            base.Dispose(disposing);
         }
 
         public override int Read(byte[] buffer, int offset, int count)
@@ -89,56 +98,63 @@ namespace MDACS.Server
             // --kmcguire
             wh.Wait();
 
-            if (chunks.Count < 1)
+            lock (chunks)
             {
+
+                if (chunks.Count < 1)
+                {
 #if DOUBLE_ENDED_STREAM_DEBUG
-                Console.WriteLine("{0}.Read: No chunks readable.", this);
+                    Console.WriteLine("{0}.Read: No chunks readable.", this);
 #endif
-                return 0;
-            }
+                    return 0;
+                }
 
-            var chunk = chunks.Peek();
+                var chunk = chunks.Peek();
 
-            if (chunk.data == null)
-            {
+                if (chunk.data == null)
+                {
 #if DOUBLE_ENDED_STREAM_DEBUG
-                Console.WriteLine("{0}.Read: Stream closed on read.", this);
+                    Console.WriteLine("{0}.Read: Stream closed on read.", this);
 #endif
-                return -1;
-            }
+                    return -1;
+                }
 
-            if (count < chunk.actual)
-            {
+                if (count < chunk.actual)
+                {
 #if DOUBLE_ENDED_STREAM_DEBUG
-                Console.WriteLine("{0}.Read: Read amount less than current chunk. chunk.offset={1} chunk.actual={2}", this, chunk.offset, chunk.actual);
+                    Console.WriteLine("{0}.Read: Read amount less than current chunk. chunk.offset={1} chunk.actual={2}", this, chunk.offset, chunk.actual);
 #endif
-                Array.Copy(chunk.data, chunk.offset, buffer, offset, count);
+                    Array.Copy(chunk.data, chunk.offset, buffer, offset, count);
 
-                // Only take partial amount from the chunk.
-                chunk.offset += count;
-                chunk.actual -= count;
+                    // Only take partial amount from the chunk.
+                    chunk.offset += count;
+                    chunk.actual -= count;
 
-                // Add another thread entry since this items was never actually removed.
-                wh.Release();
+                    // Add another thread entry since this items was never actually removed.
+                    wh.Release();
 
-                return count;
-            } else
-            {
-                count = chunk.actual;
+                    return count;
+                }
+                else
+                {
+                    count = chunk.actual;
 #if DOUBLE_ENDED_STREAM_DEBUG
-                Console.WriteLine("{0}.Read: Read amount equal or greater than current chunk.", this);
+                    Console.WriteLine("{0}.Read: Read amount equal or greater than current chunk.", this);
 #endif
-                // Take the whole chunk, but no more to keep logic simple.
-                Array.Copy(chunk.data, chunk.offset, buffer, offset, count);
-                chunks.Dequeue();
+                    // Take the whole chunk, but no more to keep logic simple.
+                    Array.Copy(chunk.data, chunk.offset, buffer, offset, count);
+                    chunks.Dequeue();
 
-                return count;
+                    return count;
+                }
             }
         }
 
         public override void Write(byte[] buffer, int offset, int count)
         {
             Chunk chunk = new Chunk();
+
+            Console.WriteLine("$$$$$$$$$$");
 
             chunk.data = new byte[count];
 
@@ -147,7 +163,10 @@ namespace MDACS.Server
             chunk.offset = 0;
             chunk.actual = count;
 
-            chunks.Enqueue(chunk);
+            lock (chunks)
+            {
+                chunks.Enqueue(chunk);
+            }
 
 #if DOUBLE_ENDED_STREAM_DEBUG
             Console.WriteLine("{0}.Write: Writing chunk of size {1} to stream.", this, count);

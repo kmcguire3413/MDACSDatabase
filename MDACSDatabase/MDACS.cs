@@ -366,9 +366,18 @@ namespace MDACS.API
 
         public static async Task<AuthCheckResponse> AuthenticateMessageAsync(String auth_url, String msg)
         {
+            var msg_decoded = JsonConvert.DeserializeObject<Msg>(msg);
+
+            if (msg_decoded == null)
+            {
+                var tmp = new AuthCheckResponse();
+                tmp.success = false;
+                return tmp;
+            }
+
             return await AuthenticateMessageAsync(
                 auth_url,
-                JsonConvert.DeserializeObject<Msg>(msg)
+                msg_decoded
             );
         }
 

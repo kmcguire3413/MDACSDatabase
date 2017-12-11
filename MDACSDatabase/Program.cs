@@ -91,7 +91,7 @@ namespace MDACS.Server
 
             var resp = await MDACS.API.Auth.AuthenticateMessageAsync(
                 "https://epdmdacs.kmcg3413.net:34002",
-                Encoding.UTF8.GetString(buf)
+                Encoding.UTF8.GetString(buf, 0, pos)
             );
 
             return resp;
@@ -110,13 +110,12 @@ namespace MDACS.Server
 
         private async void HandleData(HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
         {
-            /*var auth_resp = await ReadMessageFromStreamAndAuthenticate(1024 * 16, body);
+            var auth_resp = await ReadMessageFromStreamAndAuthenticate(1024 * 16, body);
 
             if (!auth_resp.success)
             {
                 throw new AuthenticationException();
             }
-            */
 
             var reply = new HandleDataReply();
 
@@ -132,29 +131,18 @@ namespace MDACS.Server
                 }
             }
 
-            var de_stream = new DoubleEndedStream();
+            using (var de_stream = new DoubleEndedStream())
+            {
 
-            await encoder.WriteQuickHeader(200, "OK");
+                await encoder.WriteQuickHeader(200, "OK");
 
-            // Start the process of sending from the stream to the current client.
-            //await encoder.BodyWriteStream(de_stream);
+                var tmp = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(reply));
 
+                await encoder.BodyWriteStream(de_stream);
 
-            //await encoder.BodyWriteSingleChunk(JsonConvert.SerializeObject(reply));
+                await de_stream.WriteAsync(tmp, 0, tmp.Length);
 
-            var tmp = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(reply));
-
-            await encoder.BodyWriteStream(de_stream);
-
-            await de_stream.WriteAsync(tmp, 0, tmp.Length);
-
-            de_stream.Close();
-
-            //await encoder.WriteQuickHeader(200, "OK");
-            //var something = Encoding.UTF8.GetBytes("Hello World");
-            // Now, write to the double ended stream for testing purposes.
-            //await de_stream.WriteAsync(something, 0, something.Length);
-            //de_stream.Close();
+            }
         }
 
         public override async Task HandleRequest2(HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
