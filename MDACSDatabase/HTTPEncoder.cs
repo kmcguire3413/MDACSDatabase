@@ -1,4 +1,6 @@
-﻿using System;
+﻿#define DEBUG_HTTP_ENCODER
+
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -11,6 +13,7 @@ namespace MDACS.Server
         SendingHeaders,
         SendingChunkedBody,
         SendingContentLengthBody,
+        SendingBody,
     }
 
     class HTTPEncoder
@@ -30,6 +33,11 @@ namespace MDACS.Server
         }
 
         public async Task DoHeaders() {
+            if (state != HTTPEncoderState.SendingHeaders)
+            {
+                throw new Exception("State should have been sending headers, but was something else.");
+            }
+
             String response_code = "500";
             String response_text = "ERROR";
 
@@ -47,7 +55,9 @@ namespace MDACS.Server
                 }
             }
 
-            Console.WriteLine("Sent HTTP/1.1 status");
+#if DEBUG_HTTP_ENCODER
+            Console.WriteLine("{0}.DoHeaders: Sending headers.", this);
+#endif
             String _line = String.Format("HTTP/1.1 {0} {1}\r\n", response_code, response_text);
             byte[] _line_bytes = Encoding.UTF8.GetBytes(_line);
             Console.WriteLine("@@@method");
@@ -69,10 +79,17 @@ namespace MDACS.Server
                 Console.WriteLine("@@@header");
                 await s.WriteAsync(line_bytes, 0, line_bytes.Length);
             }
+
+            state = HTTPEncoderState.SendingBody;
         }
 
         public async Task BodyWriteSingleChunk(byte[] chunk, int offset, int length)
         {
+            if (state != HTTPEncoderState.SendingHeaders)
+            {
+                throw new Exception("State should have been sending of headers, but was other.");
+            }
+
             if (header == null)
             {
                 throw new Exception("Headers must be set first.");
@@ -90,6 +107,10 @@ namespace MDACS.Server
 
             await DoHeaders();
 
+#if DEBUG_HTTP_ENCODER
+            Console.WriteLine("{0}.WriteSingleChunk: Sending single chunk.", this);
+#endif
+
             byte[] tmp = new byte[2];
             tmp[0] = (byte)'\r';
             tmp[0] = (byte)'\n';
@@ -99,6 +120,8 @@ namespace MDACS.Server
             await s.WriteAsync(chunk, offset, length);
 
             await s.WriteAsync(tmp, 0, tmp.Length);
+
+            state = HTTPEncoderState.SendingHeaders;
         }
 
         public async Task BodyWriteFirstChunk(byte[] buf, int offset, int length)
@@ -119,6 +142,10 @@ namespace MDACS.Server
 
             await DoHeaders();
 
+#if DEBUG_HTTP_ENCODER
+            Console.WriteLine("{0}.BodyWriteFirstChunk: Sending the first chunk.", this);
+#endif
+
             byte[] tmp = new byte[2];
             tmp[0] = (byte)'\r';
             tmp[1] = (byte)'\n';
@@ -131,25 +158,48 @@ namespace MDACS.Server
             await s.WriteAsync(buf, offset, length);
 
             await s.WriteAsync(tmp, 0, tmp.Length);
+
+            state = HTTPEncoderState.SendingChunkedBody;
         }
 
         public async Task BodyWriteNextChunk(byte[] buf, int offset, int length)
         {
-            byte[] chunk_header = Encoding.UTF8.GetBytes(String.Format("{0:X}r\n", length));
+            if (state == HTTPEncoderState.SendingContentLengthBody || state == HTTPEncoderState.SendingHeaders)
+            {
+                throw new Exception("State should have been sending of chunked response, but was content-length or headers expecting.");
+            }
+
+#if DEBUG_HTTP_ENCODER
+            Console.WriteLine("{0}.BodyWriteNextChunk: Writing chunk.", this);
+#endif
+
+            byte[] chunk_header = Encoding.UTF8.GetBytes(String.Format("{0:x}\r\n", length));
 
             await s.WriteAsync(chunk_header, 0, chunk_header.Length);
             await s.WriteAsync(buf, offset, length);
             byte[] tmp = new byte[2];
             tmp[0] = (byte)'\r';
             tmp[1] = (byte)'\n';
-            await s.WriteAsync(tmp, 0, tmp.Length);
+            await s.WriteAsync(tmp, offset, tmp.Length);
+
+            state = HTTPEncoderState.SendingChunkedBody;
         }
 
         public async Task BodyWriteNoChunk()
         {
+            if (state == HTTPEncoderState.SendingContentLengthBody || state == HTTPEncoderState.SendingHeaders)
+            {
+                throw new Exception("State should have been sending of chunked response, but was content-length or headers expecting.");
+            }
+
+#if DEBUG_HTTP_ENCODER
+            Console.WriteLine("{0}.BodyWriteNoChunk: Writing last chunk.", this);
+#endif
+
             byte[] chunk_header = Encoding.UTF8.GetBytes("0\r\n\r\n");
             await s.WriteAsync(chunk_header, 0, chunk_header.Length);
-        }
 
+            state = HTTPEncoderState.SendingHeaders;
+        }
     }
 }

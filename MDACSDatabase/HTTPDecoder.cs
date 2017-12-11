@@ -75,7 +75,13 @@ namespace MDACS.Server
             // Copy postfix onto prefix at beginning.
             Array.Copy(ms, size, ms, 0, last_write_pos - size);
 
-            last_write_pos = last_write_pos - size;
+            if (last_write_pos - size > 0)
+            {
+                last_write_pos = last_write_pos - size;
+            } else
+            {
+                last_write_pos = 0;
+            }
 
             return tmp;
         }
@@ -91,6 +97,8 @@ namespace MDACS.Server
                 {
                     var cnt = await ReadChunk();
 
+                    Console.WriteLine("cnt={0} from ReadChunk", cnt);
+
                     if (cnt < 1)
                     {
                         return null;
@@ -100,13 +108,14 @@ namespace MDACS.Server
                 Console.WriteLine(String.Format("ReadHeader: last_write_pos={0}", last_write_pos));
 
                 // Check if we have a complete line in the buffer.
-                line_end_pos = Array.FindIndex(ms, b => b == 10);
+                line_end_pos = Array.FindIndex(ms, 0, last_write_pos, b => b == 10);
+
+                Console.WriteLine(String.Format("PRE:line_end_pos={0}", line_end_pos));
 
                 if (line_end_pos > -1)
                 {
-                    var line = await TakeChunkPrefix(line_end_pos);
+                    var line = await TakeChunkPrefix(line_end_pos + 1);
                     var line_utf8_str = Encoding.UTF8.GetString(line).Trim();
-                    await TakeChunkPrefix(1);
 
                     if (line_utf8_str.Length == 0)
                     {
@@ -115,11 +124,12 @@ namespace MDACS.Server
                     }
                     else
                     {
+                        Console.WriteLine("line_utf8_str={0}", line_utf8_str);
                         header.Add(line_utf8_str);
                     }
                 }
 
-                Console.WriteLine(String.Format("line_end_pos={0}", line_end_pos));
+                Console.WriteLine(String.Format("POST:line_end_pos={0}", line_end_pos));
             } while (true);
 
             Console.WriteLine("Done reading header.");

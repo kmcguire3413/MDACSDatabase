@@ -1,4 +1,6 @@
-﻿using System;
+﻿#define DOUBLE_ENDED_STREAM_DEBUG
+
+using System;
 using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
@@ -12,40 +14,59 @@ using System.Security.Cryptography.X509Certificates;
 using System.Net.Sockets;
 using System.Threading;
 using System.Net.Security;
+using System.Security.Cryptography;
 
 namespace MDACS.Server
 {
     /*
-    class Item
+        {
+          "security_id": "2bad9cc76a04803e19327bf88e2ea8f986d5340e932d97017505c2430855314ef8bc05b9deb6aca15f40832fdb58894ce5a2ddef45c2eb1729e0f15ebfecd416", 
+          "node": "2017-12-08_bstewart_7H00665_232030_mp4.0", 
+          "duration": 1.9, 
+          "metatime": 1512848871.9615905, 
+          "fqpath": "/var/mdacs/camerasys_secure/data/2017-12-08_bstewart_7H00665_232030_mp4.0", 
+          "userstr": "bstewart", 
+          "timestr": "232030", 
+          "devicestr": "7H00665", 
+          "datestr": "2017-12-08", 
+          "datatype": "mp4", 
+          "datasize": 21004288, 
+          "versions": [
+            ["low", "2bad9cc76a04803e19327bf88e2ea8f986d5340e932d97017505c2430855314ef8bc05b9deb6aca15f40832fdb58894ce5a2ddef45c2eb1729e0f15ebfecd416&low"]
+          ], 
+          "transcoding": false, 
+          "note": "Trash", 
+        }
+    */
+
+    struct Item
     {
-        public String datatype;
+        public String security_id;
+        public String node;
+        public double duration;
+        public double metatime;
+        public String fqpath;
+        public String userstr;
+        public String timestr;
         public String datestr;
         public String devicestr;
-        public String timestr;
+        public String datatype;
         public ulong datasize;
-        public String node;
-        public String security_id;
         public String note;
+        public String state;
+        public String[][] versions;
     }
 
-    class Server: IHttpModule
+    class HTTPClient3: HTTPClient2
     {
-        private Dictionary<String, Item> items;
+        private ServerHandler shandler;
 
-        public Server()
+        public HTTPClient3(IHTTPServerHandler shandler, HTTPDecoder decoder, HTTPEncoder encoder) : base(shandler, decoder, encoder)
         {
-            items = new Dictionary<string, Item>();
-
-            var item = new Item();
-
-            item.datatype = "a";
-            item.datestr = "b";
-            item.timestr = "c";
-
-            items.Add("test", item);
+            this.shandler = shandler as ServerHandler;
         }
 
-        class AuthenticationException: Exception
+        class AuthenticationException : Exception
         {
 
         }
@@ -87,44 +108,60 @@ namespace MDACS.Server
             public Item[] data;
         }
 
-        private async void HandleData(IHttpContext context)
+        private async void HandleData(HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
         {
-            var req = context.Request;
-
-            var auth_resp = await ReadMessageFromStreamAndAuthenticate(1024 * 16, req.Body);
-
-            req.Body.Close();
+            /*var auth_resp = await ReadMessageFromStreamAndAuthenticate(1024 * 16, body);
 
             if (!auth_resp.success)
             {
                 throw new AuthenticationException();
             }
+            */
 
             var reply = new HandleDataReply();
-            reply.data = new Item[this.items.Count];
 
-            lock (this.items)
+            reply.data = new Item[shandler.items.Count];
+
+            lock (shandler.items)
             {
                 int x = 0;
 
-                foreach (var pair in this.items)
+                foreach (var pair in shandler.items)
                 {
                     reply.data[x++] = pair.Value;
                 }
             }
 
-            await WriteMessageToStream(
-                context.Response.GetResponseStream(),
-                JsonConvert.SerializeObject(reply)
-            );
+            var de_stream = new DoubleEndedStream();
 
-            context.Response.GetResponseStream().Close();
+            await encoder.WriteQuickHeader(200, "OK");
+
+            // Start the process of sending from the stream to the current client.
+            //await encoder.BodyWriteStream(de_stream);
+
+
+            //await encoder.BodyWriteSingleChunk(JsonConvert.SerializeObject(reply));
+
+            var tmp = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(reply));
+
+            await encoder.BodyWriteStream(de_stream);
+
+            await de_stream.WriteAsync(tmp, 0, tmp.Length);
+
+            de_stream.Close();
+
+            //await encoder.WriteQuickHeader(200, "OK");
+            //var something = Encoding.UTF8.GetBytes("Hello World");
+            // Now, write to the double ended stream for testing purposes.
+            //await de_stream.WriteAsync(something, 0, something.Length);
+            //de_stream.Close();
         }
 
-        public async Task<bool> HandleAsync(IHttpContext context)
+        public override async Task HandleRequest2(HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
         {
-            var req = context.Request;
-            var url = req.Path;
+            var url = request.url_absolute;
+
+            Console.WriteLine("url={0}", url);
 
             switch (url)
             {
@@ -135,7 +172,7 @@ namespace MDACS.Server
                 case "/download":
                     break;
                 case "/data":
-                    HandleData(context);
+                    HandleData(request, body, encoder);
                     break;
                 case "/delete":
                     break;
@@ -152,311 +189,57 @@ namespace MDACS.Server
                 case "/commit_batch_single_ops":
                     break;
             }
-
-            return true;
         }
     }
-    */
 
-    class ProxyHTTPEncoder
+    class ServerHandler : IHTTPServerHandler
     {
-        public HTTPEncoder encoder;
-        public AsyncManualResetEvent ready;
-        public AsyncManualResetEvent done;
-        public bool close_connection;
+        public Dictionary<String, Item> items;
 
-        public ProxyHTTPEncoder(HTTPEncoder encoder, bool close_connection)
+        public ServerHandler(String metajournal_path, String data_path)
         {
-            this.encoder = encoder;
-            this.ready = new AsyncManualResetEvent();
-            this.done = new AsyncManualResetEvent();
-            this.close_connection = close_connection;
-        }
+            items = new Dictionary<string, Item>();
 
-        public async Task Death()
-        {
+            var mj = File.OpenText(metajournal_path);
 
-        }
+            var hasher = MD5.Create();
 
-        /// <summary>
-        /// Write the HTTP headers to the remote endpoint. The actual writing of the headers may or may
-        /// not be delayed - depending on the implementation. The headers are likely to be sent once some
-        /// response data has been written.
-        /// </summary>
-        /// <param name="header">The header.</param>
-        /// <returns></returns>
-        public async Task WriteHeader(Dictionary<String, String> header)
-        {
-            if (close_connection)
+            while (!mj.EndOfStream)
             {
-                if (header.ContainsKey("connection"))
+                var line = mj.ReadLine();
+
+                var colon_ndx = line.IndexOf(':');
+
+                var hash = line.Substring(0, colon_ndx);
+                var meta = line.Substring(colon_ndx + 1).TrimEnd();
+
+                var correct_hash = BitConverter.ToString(
+                    hasher.ComputeHash(Encoding.UTF8.GetBytes(meta))
+                ).Replace("-", "").ToLower();
+
+                if (hash != correct_hash)
                 {
-                    header["connection"] = "close";
-                } else
-                {
-                    header.Add("connection", "close");
+                    throw new Exception("A hash failed to match upon loading the metadata journal (metajournal).");
                 }
-            } else
-            {
-                if (header.ContainsKey("connection"))
+
+                var metaitem = JsonConvert.DeserializeObject<Item>(meta);
+
+                if (items.ContainsKey(metaitem.security_id))
                 {
-                    header["connection"] = "keep-alive";
+                    // Overwrite existing entries.
+                    items[metaitem.security_id] = metaitem;
                 }
                 else
                 {
-                    header.Add("connection", "keep-alive");
+                    // Add new entries.
+                    items.Add(metaitem.security_id, metaitem);
                 }
             }
-
-            Console.WriteLine("!!! waiting on ready");
-            await this.ready.WaitAsync();
-            Console.WriteLine("!!! ready was good");
-            await encoder.WriteHeader(header);
         }
 
-        public async Task BodyWriteSingleChunk(String chunk)
+        public override HTTPClient CreateClient(IHTTPServerHandler shandler, HTTPDecoder decoder, HTTPEncoder encoder)
         {
-            byte[] chunk_bytes = Encoding.UTF8.GetBytes(chunk);
-            await BodyWriteSingleChunk(chunk_bytes, 0, chunk_bytes.Length);
-        }
-
-        /// <summary>
-        /// This will send a single chunk and use the content-length field of the HTTP response.
-        /// </summary>
-        /// <param name="chunk">The data to send.</param>
-        /// <param name="offset">The offset within the data array.</param>
-        /// <param name="length">The length of the chunk within the data array starting at the offset specified.</param>
-        /// <returns></returns>
-        public async Task BodyWriteSingleChunk(byte[] chunk, int offset, int length)
-        {
-            await this.ready.WaitAsync();
-            await this.encoder.BodyWriteSingleChunk(chunk, offset, length);
-            this.done.Set();
-        }
-
-        private async Task BodyWriteStreamInternal(Stream inpstream)
-        {
-            byte[] buf = new byte[1024 * 4];
-            bool first_chunk = true;
-
-            Console.WriteLine("BodyWriteStreamInternal: Now running.");
-
-            do
-            {
-                var cnt = await inpstream.ReadAsync(buf, 0, buf.Length);
-
-                if (cnt < 1)
-                {
-                    Console.WriteLine("BodyWriteStreamInternal: EOS");
-                    break;
-                }
-                
-                if (first_chunk)
-                {
-                    Console.WriteLine("BodyWriteStreamInternal: First chunk.");
-                    await this.encoder.BodyWriteFirstChunk(buf, 0, cnt);
-                    first_chunk = false;
-                } else
-                {
-                    Console.WriteLine("BodyWriteStreamInternal: Next chunk.");
-                    await this.encoder.BodyWriteNextChunk(buf, 0, cnt);
-                }
-            } while (true);
-
-            await this.encoder.BodyWriteNoChunk();
-
-            this.done.Set();
-        }
-
-        /// <summary>
-        /// This will spawn an asynchronous task which will continually read from the stream until
-        /// it reaches the end. Each chunk of data read from the stream will be send as a chunk of
-        /// a transfer-encoding chunked response.
-        /// </summary>
-        /// <param name="inpstream">The stream to read chunks from.</param>
-        /// <returns></returns>
-        public async Task BodyWriteStream(Stream inpstream)
-        {
-            await this.ready.WaitAsync();
-
-            // Control needs to return to the caller. Do not `await` the result of this task.
-            Task.Run(() => BodyWriteStreamInternal(inpstream));
-        }
-    }
-
-    class HTTPClient
-    {
-        private HTTPDecoder decoder;
-        private HTTPEncoder encoder;
-
-        public HTTPClient(HTTPDecoder decoder, HTTPEncoder encoder)
-        {
-            this.decoder = decoder;
-            this.encoder = encoder;
-        }
-
-        private Dictionary<String, String> LineHeaderToDictionary(List<String> line_header)
-        {
-            var tmp = new Dictionary<String, String>();
-
-            foreach (var line in line_header)
-            {
-                var sep_ndx = line.IndexOf(':');
-
-                if (sep_ndx > -1)
-                {
-                    var key = line.Substring(0, sep_ndx).Trim();
-                    var value = line.Substring(sep_ndx + 1).Trim();
-
-                    tmp.Add(key.ToLower(), value.ToLower());
-                }
-            }
-
-            return tmp;
-        }
-
-        public virtual async Task HandleRequest(Dictionary<String, String> header, Stream body, ProxyHTTPEncoder encoder)
-        {
-            var outheader = new Dictionary<String, String>();
-
-            outheader.Add("$response_code", "200");
-            outheader.Add("$response_text", "OK");
-
-            Console.WriteLine("Sending response header now.");
-
-            await encoder.WriteHeader(outheader);
-
-            Console.WriteLine("Sending response body now.");
-
-            MemoryStream ms = new MemoryStream();
-
-            byte[] something = Encoding.UTF8.GetBytes("hello world\n");
-
-            ms.Write(something, 0, something.Length);
-            ms.Write(something, 0, something.Length);
-            ms.Write(something, 0, something.Length);
-            ms.Write(something, 0, something.Length);
-            ms.Write(something, 0, something.Length);
-
-            ms.Position = 0;
-
-            //await encoder.BodyWriteSingleChunk("response test body");
-            await encoder.BodyWriteStream(ms);
-
-            Console.WriteLine("Response has been sent.");
-        }
-
-        public async Task Handle()
-        {
-            var q = new Queue<ProxyHTTPEncoder>();
-
-            var qchanged = new AsyncManualResetEvent();
-
-            // This task watches the `q` queue and starts and removes
-            // proxy objects representing the HTTP encoder. Each request
-            // gets its own proxy object and all methods on the proxy either
-            // block or buffer until the proxy object becomes ready.
-#pragma warning disable 4014
-            Task.Run(async () =>
-            {
-                while (true)
-                {
-                    ProxyHTTPEncoder phe;
-
-                    Console.WriteLine("waiting on qchanged");
-                    await qchanged.WaitAsync();
-
-                    Console.WriteLine("reset qchanged");
-                    qchanged.Reset();
-
-                    // Only lock long enough to get the first item.
-                    lock (q)
-                    {
-                        phe = q.Peek();
-                    }
-
-                    if (phe == null)
-                    {
-                        // The exit signal.
-                        Console.WriteLine("peeked null; now exiting");
-                        break;
-                    }
-
-                    // Signal this object that it is ready to do work.
-                    phe.ready.Set();
-                    Console.WriteLine("signaling phe as ready");
-
-                    // Wait until it is done.
-                    await phe.done.WaitAsync();
-
-                    Console.WriteLine("phe is done");
-
-                    phe.Death();
-
-                    // Remove it, and signal the next to go.
-                    q.Dequeue();
-                    Console.WriteLine("phe dequeued");
-                }
-            });
-#pragma warning restore 4014
-
-            while (true)
-            {
-                // Need a way for this to block (await) until the body has been completely
-                // read. This logic could be implemented inside the decoder.
-                var line_header = await decoder.ReadHeader();
-
-                Console.WriteLine("Header to dictionary.");
-
-                var header = LineHeaderToDictionary(line_header);
-
-                if (header == null)
-                {
-                    Console.WriteLine("Connection has been lost.");
-                    break;
-                }
-
-                Stream body;
-
-                Console.WriteLine("Got header.");
-
-                if (header.ContainsKey("content-length"))
-                {
-                    Console.WriteLine("Got content-length.");
-                    // Content length specified body follows.
-                    long content_length = (long)Convert.ToUInt32(header["content-length"]);
-
-                    body = await decoder.ReadBody(HTTPDecoderBodyType.ContentLength(content_length));
-                } else if (header.ContainsKey("transfer-encoding"))
-                {
-                    Console.WriteLine("Got chunked.");
-                    // Chunked encoded body follows.
-                    body = await decoder.ReadBody(HTTPDecoderBodyType.ChunkedEncoding());
-                } else {
-                    Console.WriteLine("Got no body.");
-                    // No body follows. (Not using await to allow pipelining.)
-                    body = await decoder.ReadBody(HTTPDecoderBodyType.NoBody());
-                }
-
-                bool close_connection = true;
-
-                if (header.ContainsKey("connection") && !header["connection"].ToLower().Equals("close"))
-                {
-                    close_connection = false;
-                }
-
-                // Currently, pipelining is not enabled.
-
-                var phe = new ProxyHTTPEncoder(encoder, close_connection);
-
-                q.Enqueue(phe);
-
-                qchanged.Set();
-
-                Console.WriteLine("Allowing handling of request.");
-                await HandleRequest(header, body, phe);
-                
-            }
+            return new HTTPClient3(shandler, decoder, encoder);
         }
     }
 
@@ -464,31 +247,13 @@ namespace MDACS.Server
     {
         static void Main(string[] args)
         {
-            TcpListener listener = new TcpListener(IPAddress.Any, 34001);
+            var handler = new ServerHandler(
+                "c:\\users\\kmcgu\\Desktop\\metajournal-2017-12-10", 
+                ""
+            );
 
-            listener.Start();
-
-            var x509 = new X509Certificate2("c:\\users\\kmcgu\\Desktop\\test.pfx", "hello");
-
-            while (true)
-            {
-                var client = listener.AcceptTcpClient();
-                var ssl_sock = new SslStream(client.GetStream(), false);
-
-                Task.Run(async () =>
-                {
-                    Console.WriteLine("Authenticating as server through SSL/TLS.");
-
-                    await ssl_sock.AuthenticateAsServerAsync(x509);
-
-                    var http_decoder = new HTTPDecoder(ssl_sock);
-                    var http_encoder = new HTTPEncoder(ssl_sock);
-                    var http_client = new HTTPClient(http_decoder, http_encoder);
-
-                    Console.WriteLine("Handling client.");
-                    await http_client.Handle();
-                });
-            }
+            var server = new HTTPServer<ServerHandler>(handler, "c:\\users\\kmcgu\\Desktop\\test.pfx", "hello");
+            server.Start();
 
             /*
             var config = new Ceen.Httpd.ServerConfig();
