@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace MDACS.Server
 {
-    class HTTPClient2 : HTTPClient
+    public class HTTPClient2 : HTTPClient
     {
         public enum HTTPRequestMethod
         {
@@ -56,7 +56,7 @@ namespace MDACS.Server
             {
                 var qsndx = url.IndexOf("?");
                 var qstring = url.Substring(qsndx + 1);
-                var qstring_parts = qstring.Split("&");
+                var qstring_parts = qstring.Split('&');
 
                 foreach (var part in qstring_parts)
                 {

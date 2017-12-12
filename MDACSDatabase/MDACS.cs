@@ -274,7 +274,6 @@ namespace MDACS.API
 
             req.Method = "POST";
             req.ContentType = "text/json";
-            req.ContentLength = 0;
 
             data = req.GetRequestStream();
             var buf = Encoding.UTF8.GetBytes(msg);

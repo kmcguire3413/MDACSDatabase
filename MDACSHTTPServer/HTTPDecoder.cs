@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace MDACS.Server
 {
-    class HTTPDecoderBodyType
+    public class HTTPDecoderBodyType
     {
         public enum MyType
         {
@@ -40,7 +40,7 @@ namespace MDACS.Server
         }
     }
 
-    class HTTPDecoder
+    public class HTTPDecoder
     {
         private Stream s;
         private byte[] ms;

@@ -9,12 +9,12 @@ using System.Threading.Tasks;
 
 namespace MDACS.Server
 {
-    abstract class IHTTPServerHandler
+    public abstract class IHTTPServerHandler
     {
         public abstract HTTPClient CreateClient(IHTTPServerHandler shandler, HTTPDecoder decoder, HTTPEncoder encoder); 
     }
 
-    class HTTPServer<C> where C: IHTTPServerHandler
+    public class HTTPServer<C> where C: IHTTPServerHandler
     {
         private String pfx_cert_path;
         private String cert_private_key_password;

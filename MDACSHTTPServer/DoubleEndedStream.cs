@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace MDACS.Server
 {
-    class DoubleEndedStream : Stream, IDisposable
+    public class DoubleEndedStream : Stream, IDisposable
     {
         class Chunk
         {

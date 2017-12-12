@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace MDACS.Server
 {
-    class ProxyHTTPEncoder
+    public class ProxyHTTPEncoder
     {
         public HTTPEncoder encoder;
         public AsyncManualResetEvent ready;
@@ -170,7 +170,7 @@ namespace MDACS.Server
         }
     }
 
-    class HTTPClient
+    public class HTTPClient
     {
         private HTTPDecoder decoder;
         private HTTPEncoder encoder;

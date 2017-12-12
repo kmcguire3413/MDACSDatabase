@@ -18,28 +18,7 @@ using System.Security.Cryptography;
 
 namespace MDACS.Server
 {
-    /*
-        {
-          "security_id": "2bad9cc76a04803e19327bf88e2ea8f986d5340e932d97017505c2430855314ef8bc05b9deb6aca15f40832fdb58894ce5a2ddef45c2eb1729e0f15ebfecd416", 
-          "node": "2017-12-08_bstewart_7H00665_232030_mp4.0", 
-          "duration": 1.9, 
-          "metatime": 1512848871.9615905, 
-          "fqpath": "/var/mdacs/camerasys_secure/data/2017-12-08_bstewart_7H00665_232030_mp4.0", 
-          "userstr": "bstewart", 
-          "timestr": "232030", 
-          "devicestr": "7H00665", 
-          "datestr": "2017-12-08", 
-          "datatype": "mp4", 
-          "datasize": 21004288, 
-          "versions": [
-            ["low", "2bad9cc76a04803e19327bf88e2ea8f986d5340e932d97017505c2430855314ef8bc05b9deb6aca15f40832fdb58894ce5a2ddef45c2eb1729e0f15ebfecd416&low"]
-          ], 
-          "transcoding": false, 
-          "note": "Trash", 
-        }
-    */
-
-    struct Item
+    public struct Item
     {
         public String security_id;
         public String node;
