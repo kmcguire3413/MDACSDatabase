@@ -409,7 +409,7 @@ namespace MDACS.API
             check.challenge = msg.auth.challenge;
 
             var resp_string2 = await AuthTransactionAsync(
-                String.Format("{0}/verify", auth_url),
+                String.Format("{0}/verify-payload", auth_url),
                 JsonConvert.SerializeObject(check)
             );
 

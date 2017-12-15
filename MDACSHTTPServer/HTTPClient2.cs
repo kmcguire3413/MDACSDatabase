@@ -20,6 +20,7 @@ namespace MDACS.Server
             public String url;
             public String url_absolute;
             public Dictionary<String, String> query;
+            public String query_string;
             public HTTPRequestMethod method;
             public Dictionary<String, String> internal_headers;
         }
@@ -33,6 +34,14 @@ namespace MDACS.Server
             throw new Exception("Not Implemented");
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="header"></param>
+        /// <param name="body"></param>
+        /// <param name="encoder"></param>
+        /// <returns></returns>
+        /// <remarks>This implementation needs cleaning on variable names for query string processing.</remarks>
         public override async Task HandleRequest(Dictionary<String, String> header, Stream body, ProxyHTTPEncoder encoder)
         {
             var outheader = new Dictionary<String, String>();
@@ -50,18 +59,27 @@ namespace MDACS.Server
             var url = header["$url"];
             var url_absolute = url;
             var query_string = new Dictionary<String, String>();
+            String query_as_string = null;
 
             // Break down any query string into its key and value parts.
             if (url.IndexOf("?") > -1)
             {
                 var qsndx = url.IndexOf("?");
-                var qstring = url.Substring(qsndx + 1);
-                var qstring_parts = qstring.Split('&');
+                query_as_string = url.Substring(qsndx + 1);
+                var qstring_parts = query_as_string.Split('&');
 
                 foreach (var part in qstring_parts)
                 {
                     var eqndx = part.IndexOf("=");
-                    query_string.Add(part.Substring(0, eqndx), part.Substring(eqndx + 1));
+
+                    if (eqndx < 0)
+                    {
+                        query_string.Add(part, part);
+                    }
+                    else
+                    {
+                        query_string.Add(part.Substring(0, eqndx), part.Substring(eqndx + 1));
+                    }
                 }
 
                 url_absolute = url.Substring(0, qsndx);
@@ -86,6 +104,7 @@ namespace MDACS.Server
             request.query = query_string;
             request.url = url;
             request.url_absolute = url_absolute;
+            request.query_string = query_as_string;
 
             await HandleRequest2(request, body, encoder);
         }
