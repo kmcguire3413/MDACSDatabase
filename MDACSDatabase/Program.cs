@@ -313,7 +313,7 @@ namespace MDACS.Database
 
             try
             {
-                foreach (var node in Directory.EnumerateFiles(shandler.data_path))
+                foreach (var node in Directory.EnumerateFiles(this.shandler.config_path))
                 {
                     var fnode = Path.Combine(shandler.data_path, node);
 
@@ -484,6 +484,130 @@ namespace MDACS.Database
             }
         }
 
+        private async Task<bool> WaitForFileSizeMatch(String path, ulong size, int minutes)
+        {
+            var st = DateTime.Now;
+            ulong fsize;
+
+            do
+            {
+                var fpc = File.OpenRead(path);
+                fsize = (ulong)fpc.Length;
+                fpc.Dispose();
+                await Task.Yield();
+            } while (
+                fsize != size &&
+                (DateTime.Now - st).TotalMinutes < 5
+            );
+
+            if (fsize != size)
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        private async void HandleUpload(HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
+        {
+            var buf = new byte[4096];
+            int bufndx = 0;
+            int cnt;
+            int tndx;
+
+            do
+            {
+                cnt = await body.ReadAsync(buf, bufndx, buf.Length - bufndx);
+
+                if (cnt > 0)
+                {
+                    bufndx += cnt;
+                }
+
+                if (bufndx >= buf.Length)
+                {
+                    throw new ProgramException("On receiving upload header. The header size exceeded 4096-bytes.");
+                }
+
+                tndx = Array.IndexOf(buf, (byte)'\r');
+            } while (cnt > 0 && tndx < 0);
+
+            var hdrstr = Encoding.UTF8.GetString(buf, 0, tndx).Trim();
+            var hdr = JsonConvert.DeserializeObject<API.Database.UploadHeader>(hdrstr);
+
+            Array.Copy(buf, tndx + 1, buf, 0, bufndx - (tndx + 1));
+            // Quasi-repurpose the variable `bufndx` to mark end of the slack data.
+            bufndx = bufndx - (tndx + 1);
+
+            //
+            var data_node = String.Format("{0}_{1}_{2}_{3}.{4}",
+                hdr.datestr,
+                hdr.userstr,
+                hdr.devicestr,
+                hdr.timestr,
+                hdr.datatype
+            );
+
+            var data_node_path = Path.Combine(this.shandler.data_path, data_node);
+
+            var temp_data_node_path = Path.Combine(
+                this.shandler.data_path,
+                DateTime.Now.ToFileTime().ToString()
+            );
+
+            try
+            {
+                var fp = File.OpenWrite(temp_data_node_path);
+                await fp.WriteAsync(buf, 0, bufndx);
+                await body.CopyToAsync(fp);
+                await fp.FlushAsync();
+                fp.Dispose();
+            } catch (Exception ex)
+            {
+                throw new ProgramException("Problem during write to file from body stream.", ex);
+            }
+            
+            if (await WaitForFileSizeMatch(temp_data_node_path, hdr.datasize, 3))
+            {
+                throw new ProgramException("The upload byte length of the destination never reached the intended stream size.");
+            }
+
+            try
+            {
+                File.Move(temp_data_node_path, data_node_path);
+            } catch (Exception ex)
+            {
+                throw new ProgramException("Problem when executing move from temp file to actual destination.", ex);
+            }
+
+            if (await WaitForFileSizeMatch(data_node_path, hdr.datasize, 3))
+            {
+                throw new ProgramException("The upload byte length of the destination never reached the intended stream size, after moving from the temp file.");
+            }
+
+            Item item;
+
+            item.datasize = hdr.datasize;
+            item.datatype = hdr.datatype;
+            item.datestr = hdr.datestr;
+            item.devicestr = hdr.devicestr;
+            item.duration = -2.48;
+            item.fqpath = data_node_path;
+            item.metatime = DateTime.Now.ToFileTimeUtc();
+            item.node = data_node;
+            item.note = "";
+            item.security_id = "";
+            item.timestr = hdr.timestr;
+            item.userstr = hdr.userstr;
+            item.versions = null;
+            item.state = "";
+
+            await this.shandler.WriteItemToJournal(item);
+
+            await encoder.WriteQuickHeader(200, "OK");
+            await encoder.BodyWriteSingleChunk("{ \"success\": True }");
+        }
+
         private async void HandleBatchSingleOps(HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
         {
             var auth = await ReadMessageFromStreamAndAuthenticate(1024 * 16, body);
@@ -542,6 +666,105 @@ namespace MDACS.Database
             }
         }
 
+        class HandleCommitConfigurationRequest
+        {
+            public String deviceid;
+            public String config_data;
+        }
+
+        private async void HandleCommitConfiguration(HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
+        {
+            var auth = await ReadMessageFromStreamAndAuthenticate(1024 * 16, body);
+
+            if (!auth.success)
+            {
+                throw new AuthenticationException();
+            }
+
+            if (!auth.user.admin)
+            {
+                throw new AuthenticationException();
+            }
+
+            var req = JsonConvert.DeserializeObject<HandleCommitConfigurationRequest>(auth.payload);
+
+            var fp = File.OpenWrite(
+                Path.Combine(this.shandler.config_path, String.Format("config_{0}", req.deviceid))
+            );
+
+            // TODO: *think* reliable operation and atomic as possible
+            var config_bytes_utf8 = Encoding.UTF8.GetBytes(req.config_data);
+            await fp.WriteAsync(config_bytes_utf8, 0, config_bytes_utf8.Length);
+            fp.Dispose();
+
+            await encoder.WriteQuickHeader(200, "OK");
+            await encoder.BodyWriteSingleChunk("{ \"success\": true }");
+        }
+
+        struct HandleDeviceConfigResponse
+        {
+            public bool success;
+            public String config_data;
+        }
+
+        private async void HandleDeviceConfig(HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
+        {
+            var auth = await ReadMessageFromStreamAndAuthenticate(1024 * 16, body);
+
+            //if (!auth.success)
+            //{
+            //    throw new AuthenticationException();
+            //}
+
+            var req = JsonConvert.DeserializeObject<HandleCommitConfigurationRequest>(auth.payload);
+
+            var path = Path.Combine(this.shandler.config_path, String.Format("config_{0}", req.deviceid));
+
+            if (!File.Exists(path))
+            {
+                var fp = File.OpenWrite(
+                    path
+                );
+
+                var config_bytes_utf8 = Encoding.UTF8.GetBytes(req.config_data);
+                await fp.WriteAsync(config_bytes_utf8, 0, config_bytes_utf8.Length);
+                fp.Dispose();
+
+                HandleDeviceConfigResponse resp;
+
+                resp.success = true;
+                resp.config_data = req.config_data;
+
+                await encoder.WriteQuickHeader(200, "OK");
+                await encoder.BodyWriteSingleChunk(JsonConvert.SerializeObject(resp));
+            }
+            else
+            {
+                var fp = File.OpenRead(
+                    path
+                );
+
+                var config_bytes_utf8 = new byte[fp.Length];
+                await fp.ReadAsync(config_bytes_utf8, 0, config_bytes_utf8.Length);
+                fp.Dispose();
+
+                HandleDeviceConfigResponse resp;
+
+                resp.success = true;
+                resp.config_data = Encoding.UTF8.GetString(config_bytes_utf8);
+
+                await encoder.WriteQuickHeader(200, "OK");
+                await encoder.BodyWriteSingleChunk(JsonConvert.SerializeObject(resp));
+            }
+        }
+
+        /// <summary>
+        /// The entry point for route handling. Provides common error response from exception propogation.
+        /// </summary>
+        /// <param name="request"></param>
+        /// <param name="body"></param>
+        /// <param name="encoder"></param>
+        /// <returns>Asynchronous task object.</returns>
         public override async Task HandleRequest2(HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
         {
             Logger.LogLine(String.Format("url={0}", request.url));
@@ -549,10 +772,10 @@ namespace MDACS.Database
             switch (request.url_absolute)
             {
                 case "/device-config":
-                    // ###
+                    HandleDeviceConfig(request, body, encoder);
                     break;
                 case "/upload":
-                    // ###
+                    HandleUpload(request, body, encoder);
                     break;
                 case "/download":
                     HandleDownload(request, body, encoder);
@@ -561,10 +784,9 @@ namespace MDACS.Database
                     HandleData(request, body, encoder);
                     break;
                 case "/delete":
-                    // ### 2
-                    break;
+                    throw new NotImplementedException();
                 case "/commit":
-                    break;
+                    throw new NotImplementedException();
                 case "/commitset":
                     HandleCommitSet(request, body, encoder);
                     break;
@@ -572,7 +794,7 @@ namespace MDACS.Database
                     HandleEnumerateConfigurations(request, body, encoder);
                     break;
                 case "/commit-configuration":
-                    // ###
+                    HandleCommitConfiguration(request, body, encoder);
                     break;
                 case "/commit_batch_single_ops":
                     HandleBatchSingleOps(request, body, encoder);
@@ -588,15 +810,18 @@ namespace MDACS.Database
         public String db_url;
         public String metajournal_path;
         public String data_path;
+        public String config_path;
 
         public ServerHandler(
-            String metajournal_path, 
+            String metajournal_path,
             String data_path,
+            String config_path,
             String auth_url,
             String db_url
         )
         {
             this.data_path = data_path;
+            this.config_path = config_path;
             this.auth_url = auth_url;
             this.db_url = db_url;
             this.metajournal_path = metajournal_path;
@@ -675,10 +900,11 @@ namespace MDACS.Database
         static void Main(string[] args)
         {
             var handler = new ServerHandler(
-                "c:\\users\\kmcgu\\Desktop\\metajournal-2017-12-10",
-                @"Y:\camerasys_secure\data",
-                "https://epdmdacs.kmcg3413.net:34002",
-                "https://epdmdacs.kmcg3413.net:34001"
+                metajournal_path: "c:\\users\\kmcgu\\Desktop\\metajournal-2017-12-10",
+                data_path: @"Y:\camerasys_secure\data",
+                config_path: @"Y:\camerasys_secure\",
+                auth_url: "https://epdmdacs.kmcg3413.net:34002",
+                db_url: "https://epdmdacs.kmcg3413.net:34001"
             );
 
             var server = new HTTPServer<ServerHandler>(handler, "c:\\users\\kmcgu\\Desktop\\test.pfx", "hello");

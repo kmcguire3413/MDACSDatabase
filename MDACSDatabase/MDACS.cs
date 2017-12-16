@@ -109,6 +109,16 @@ namespace MDACS.API
             return reader.ReadToEnd();
         }
 
+        public struct UploadHeader
+        {
+            public String datestr;
+            public String timestr;
+            public String devicestr;
+            public String userstr;
+            public String datatype;
+            public ulong datasize;
+        }
+
         public struct Alert
         {
 
