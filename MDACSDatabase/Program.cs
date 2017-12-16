@@ -17,6 +17,7 @@ using System.Net.Security;
 using System.Security.Cryptography;
 using MDACS.Server;
 using static MDACS.Logger;
+using static MDACS.Server.HTTPClient2;
 
 namespace MDACS.Database
 {
@@ -81,13 +82,22 @@ namespace MDACS.Database
 
     }
 
-    class HTTPClient3: HTTPClient2
+    delegate Task HTTPClient3Handler(ServerHandler shandler, HTTPRequest request, Stream body, ProxyHTTPEncoder encoder);
+
+    partial class HTTPClient3: HTTPClient2
     {
         private ServerHandler shandler;
+        private HTTPClient3Handler upload_handler;
 
-        public HTTPClient3(IHTTPServerHandler shandler, HTTPDecoder decoder, HTTPEncoder encoder) : base(shandler, decoder, encoder)
+        public HTTPClient3(
+            IHTTPServerHandler shandler, 
+            HTTPDecoder decoder, 
+            HTTPEncoder encoder,
+            HTTPClient3Handler upload
+        ) : base(shandler, decoder, encoder)
         {
             this.shandler = shandler as ServerHandler;
+            this.upload_handler = upload;
         }
 
         class AuthenticationException : ProgramException
@@ -484,128 +494,39 @@ namespace MDACS.Database
             }
         }
 
-        private async Task<bool> WaitForFileSizeMatch(String path, ulong size, int minutes)
+        class HandleCommitConfigurationRequest
         {
-            var st = DateTime.Now;
-            ulong fsize;
-
-            do
-            {
-                var fpc = File.OpenRead(path);
-                fsize = (ulong)fpc.Length;
-                fpc.Dispose();
-                await Task.Yield();
-            } while (
-                fsize != size &&
-                (DateTime.Now - st).TotalMinutes < 5
-            );
-
-            if (fsize != size)
-            {
-                return false;
-            }
-
-            return true;
+            public String deviceid;
+            public String config_data;
         }
 
-        private async void HandleUpload(HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
+        private async void HandleCommitConfiguration(HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
         {
-            var buf = new byte[4096];
-            int bufndx = 0;
-            int cnt;
-            int tndx;
+            var auth = await ReadMessageFromStreamAndAuthenticate(1024 * 16, body);
 
-            do
+            if (!auth.success)
             {
-                cnt = await body.ReadAsync(buf, bufndx, buf.Length - bufndx);
+                throw new AuthenticationException();
+            }
 
-                if (cnt > 0)
-                {
-                    bufndx += cnt;
-                }
+            if (!auth.user.admin)
+            {
+                throw new AuthenticationException();
+            }
 
-                if (bufndx >= buf.Length)
-                {
-                    throw new ProgramException("On receiving upload header. The header size exceeded 4096-bytes.");
-                }
+            var req = JsonConvert.DeserializeObject<HandleCommitConfigurationRequest>(auth.payload);
 
-                tndx = Array.IndexOf(buf, (byte)'\r');
-            } while (cnt > 0 && tndx < 0);
-
-            var hdrstr = Encoding.UTF8.GetString(buf, 0, tndx).Trim();
-            var hdr = JsonConvert.DeserializeObject<API.Database.UploadHeader>(hdrstr);
-
-            Array.Copy(buf, tndx + 1, buf, 0, bufndx - (tndx + 1));
-            // Quasi-repurpose the variable `bufndx` to mark end of the slack data.
-            bufndx = bufndx - (tndx + 1);
-
-            //
-            var data_node = String.Format("{0}_{1}_{2}_{3}.{4}",
-                hdr.datestr,
-                hdr.userstr,
-                hdr.devicestr,
-                hdr.timestr,
-                hdr.datatype
+            var fp = File.OpenWrite(
+                Path.Combine(this.shandler.config_path, String.Format("config_{0}", req.deviceid))
             );
 
-            var data_node_path = Path.Combine(this.shandler.data_path, data_node);
-
-            var temp_data_node_path = Path.Combine(
-                this.shandler.data_path,
-                DateTime.Now.ToFileTime().ToString()
-            );
-
-            try
-            {
-                var fp = File.OpenWrite(temp_data_node_path);
-                await fp.WriteAsync(buf, 0, bufndx);
-                await body.CopyToAsync(fp);
-                await fp.FlushAsync();
-                fp.Dispose();
-            } catch (Exception ex)
-            {
-                throw new ProgramException("Problem during write to file from body stream.", ex);
-            }
-            
-            if (await WaitForFileSizeMatch(temp_data_node_path, hdr.datasize, 3))
-            {
-                throw new ProgramException("The upload byte length of the destination never reached the intended stream size.");
-            }
-
-            try
-            {
-                File.Move(temp_data_node_path, data_node_path);
-            } catch (Exception ex)
-            {
-                throw new ProgramException("Problem when executing move from temp file to actual destination.", ex);
-            }
-
-            if (await WaitForFileSizeMatch(data_node_path, hdr.datasize, 3))
-            {
-                throw new ProgramException("The upload byte length of the destination never reached the intended stream size, after moving from the temp file.");
-            }
-
-            Item item;
-
-            item.datasize = hdr.datasize;
-            item.datatype = hdr.datatype;
-            item.datestr = hdr.datestr;
-            item.devicestr = hdr.devicestr;
-            item.duration = -2.48;
-            item.fqpath = data_node_path;
-            item.metatime = DateTime.Now.ToFileTimeUtc();
-            item.node = data_node;
-            item.note = "";
-            item.security_id = "";
-            item.timestr = hdr.timestr;
-            item.userstr = hdr.userstr;
-            item.versions = null;
-            item.state = "";
-
-            await this.shandler.WriteItemToJournal(item);
+            // TODO: *think* reliable operation and atomic as possible
+            var config_bytes_utf8 = Encoding.UTF8.GetBytes(req.config_data);
+            await fp.WriteAsync(config_bytes_utf8, 0, config_bytes_utf8.Length);
+            fp.Dispose();
 
             await encoder.WriteQuickHeader(200, "OK");
-            await encoder.BodyWriteSingleChunk("{ \"success\": True }");
+            await encoder.BodyWriteSingleChunk("{ \"success\": true }");
         }
 
         private async void HandleBatchSingleOps(HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
@@ -642,7 +563,8 @@ namespace MDACS.Database
                         {
                             shandler.items[sid].GetType().GetProperty(key).SetValue(shandler.items[sid], val);
                             tasks.Add(shandler.WriteItemToJournal(shandler.items[sid]));
-                        } catch (Exception ex)
+                        }
+                        catch (Exception ex)
                         {
                             failed.Add(new String[] { sid, key, val, ex.ToString() });
                         }
@@ -664,41 +586,6 @@ namespace MDACS.Database
                 await encoder.BodyWriteStream(de_stream);
                 await de_stream.WriteAsync(tmp, 0, tmp.Length);
             }
-        }
-
-        class HandleCommitConfigurationRequest
-        {
-            public String deviceid;
-            public String config_data;
-        }
-
-        private async void HandleCommitConfiguration(HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
-        {
-            var auth = await ReadMessageFromStreamAndAuthenticate(1024 * 16, body);
-
-            if (!auth.success)
-            {
-                throw new AuthenticationException();
-            }
-
-            if (!auth.user.admin)
-            {
-                throw new AuthenticationException();
-            }
-
-            var req = JsonConvert.DeserializeObject<HandleCommitConfigurationRequest>(auth.payload);
-
-            var fp = File.OpenWrite(
-                Path.Combine(this.shandler.config_path, String.Format("config_{0}", req.deviceid))
-            );
-
-            // TODO: *think* reliable operation and atomic as possible
-            var config_bytes_utf8 = Encoding.UTF8.GetBytes(req.config_data);
-            await fp.WriteAsync(config_bytes_utf8, 0, config_bytes_utf8.Length);
-            fp.Dispose();
-
-            await encoder.WriteQuickHeader(200, "OK");
-            await encoder.BodyWriteSingleChunk("{ \"success\": true }");
         }
 
         struct HandleDeviceConfigResponse
@@ -775,7 +662,7 @@ namespace MDACS.Database
                     HandleDeviceConfig(request, body, encoder);
                     break;
                 case "/upload":
-                    HandleUpload(request, body, encoder);
+                    await this.upload_handler(this.shandler, request, body, encoder);
                     break;
                 case "/download":
                     HandleDownload(request, body, encoder);
@@ -891,7 +778,12 @@ namespace MDACS.Database
 
         public override HTTPClient CreateClient(IHTTPServerHandler shandler, HTTPDecoder decoder, HTTPEncoder encoder)
         {
-            return new HTTPClient3(shandler, decoder, encoder);
+            return new HTTPClient3(
+                shandler, 
+                decoder, 
+                encoder,
+                HandleUpload.Action
+            );
         }
     }
 
