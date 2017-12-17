@@ -267,7 +267,15 @@ namespace MDACS.Server
                                         chunk_size -= cnt;
 
                                         Console.WriteLine("$$Writing async into os stream.");
-                                        await os.WriteAsync(tmp, 0, cnt);
+                                        try
+                                        {
+                                            // BUG: Why can WriteAsync not be await'ed without possible deadlock?
+                                             os.Write(tmp, 0, cnt);
+                                        } catch (Exception ex)
+                                        {
+                                            Console.WriteLine(ex.ToString());
+                                            throw ex;
+                                        }
                                         Console.WriteLine("$$Done writing async into os stream.");
                                     }
                                     catch (Exception ex)

@@ -53,7 +53,7 @@ namespace MDACS.Database
     /// A type of exception that all exceptions thrown by this program must derive from. If any exception caught must only be rethrown
     /// if it is embedded as the `caught_exception` property of this class. This can be done by calling the appropriate constructor.
     /// </summary>
-    class ProgramException: Exception
+    internal class ProgramException: Exception
     {
         public Exception caught_exception { get; }
 
@@ -73,44 +73,24 @@ namespace MDACS.Database
         }
     }
 
-    class JournalHashException: ProgramException
+    internal class JournalHashException: ProgramException
     {
     }
 
-    class UnauthorizedException: ProgramException
+    internal class UnauthorizedException: ProgramException
     {
 
     }
 
-    delegate Task HTTPClient3Handler(ServerHandler shandler, HTTPRequest request, Stream body, ProxyHTTPEncoder encoder);
-
-    partial class HTTPClient3: HTTPClient2
+    internal class InvalidArgumentException : ProgramException
     {
-        private ServerHandler shandler;
-        private HTTPClient3Handler upload_handler;
 
-        public HTTPClient3(
-            IHTTPServerHandler shandler, 
-            HTTPDecoder decoder, 
-            HTTPEncoder encoder,
-            HTTPClient3Handler upload
-        ) : base(shandler, decoder, encoder)
-        {
-            this.shandler = shandler as ServerHandler;
-            this.upload_handler = upload;
-        }
+    }
 
-        class AuthenticationException : ProgramException
-        {
 
-        }
-
-        class InvalidArgumentException : ProgramException
-        {
-
-        }
-
-        public async Task<AuthCheckResponse> ReadMessageFromStreamAndAuthenticate(int max_size, Stream input_stream)
+    internal class Helpers
+    {
+        public static async Task<AuthCheckResponse> ReadMessageFromStreamAndAuthenticate(ServerHandler shandler, int max_size, Stream input_stream)
         {
             var buf = new byte[1024 * 32];
             int pos = 0;
@@ -118,58 +98,33 @@ namespace MDACS.Database
             var a = input_stream.CanRead;
             var b = input_stream.CanTimeout;
 
+            Console.WriteLine("Reading authenticated payload.");
+
             while (pos < buf.Length)
             {
                 var cnt = await input_stream.ReadAsync(buf, pos, buf.Length - pos);
+
                 if (cnt < 1)
                 {
                     break;
                 }
+
                 pos += cnt;
             }
+
+            Console.WriteLine("Done reading authenticated payload.");
 
             var resp = await MDACS.API.Auth.AuthenticateMessageAsync(
                 shandler.auth_url,
                 Encoding.UTF8.GetString(buf, 0, pos)
             );
 
+            Console.WriteLine("Handing back result from authenticated payload.");
+
             return resp;
         }
 
-        public async Task WriteMessageToStream(Stream output_stream, String out_string)
-        {
-            var out_buffer = Encoding.UTF8.GetBytes(out_string);
-            await output_stream.WriteAsync(out_buffer, 0, out_buffer.Length);
-        }
-
-        private class HandleDataReply
-        {
-            public Item[] data;
-        }
-
-        private class HandleCommitSetRequest
-        {
-            public String security_id;
-            public Dictionary<String, String> meta;
-        }
-
-        private class HandleCommitSetResponse
-        {
-            public bool success;
-        }
-
-        private class HandleBatchSingleOpsResponse
-        {
-            public bool success;
-            public String[][] failed;
-        }
-
-        private class HandleBatchSingleOpsRequest
-        {
-            public String[][] ops;
-        }
-
-        private bool CanUserModifyItem(User user, Item item)
+        public static bool CanUserModifyItem(User user, Item item)
         {
             if (user.admin)
             {
@@ -184,465 +139,34 @@ namespace MDACS.Database
             return false;
         }
 
-        private bool CanUserSeeItem(User user, Item item)
+        public static bool CanUserSeeItem(User user, Item item)
         {
             return CanUserModifyItem(user, item);
         }
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="request"></param>
-        /// <param name="body"></param>
-        /// <param name="encoder"></param>
-        /// <exception cref="UnauthorizedException">User has insufficient priviledges to modify the item.</exception>
-        /// <exception cref="AuthenticationException">User is not valid for access of any type.</exception>
-        /// <exception cref="InvalidArgumentException">One of the arguments was not correct or the reason for failure.</exception>
-        /// <exception cref="ProgramException">Anything properly handled but needs handling for acknowlegement purposes.</exception>
-        /// <exception cref="Exception">Anything else could result in instability.</exception>
-        private async void HandleCommitSet(HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
+        public static async Task WriteMessageToStream(Stream output_stream, String out_string)
         {
-            var auth_resp = await ReadMessageFromStreamAndAuthenticate(1024 * 16, body);
-
-            if (!auth_resp.success)
-            {
-                throw new AuthenticationException();
-            }
-
-            var sreq = JsonConvert.DeserializeObject<HandleCommitSetRequest>(auth_resp.payload);
-
-            Monitor.Enter(shandler.items);
-
-            Item item;
-
-            try
-            {
-                if (!shandler.items.ContainsKey(sreq.security_id))
-                {
-                    throw new InvalidArgumentException();
-                }
-
-                item = shandler.items[sreq.security_id];
-            }
-            catch (Exception ex)
-            {
-                throw new ProgramException("Unidentified problem.", ex);
-            }
-            finally
-            {
-                Monitor.Exit(shandler.items);
-            }
-
-            if (!CanUserModifyItem(auth_resp.user, item))
-            {
-                throw new UnauthorizedException();
-            }
-
-            try
-            {
-                foreach (var pair in sreq.meta)
-                {
-                    // Reflection simplified coding time at the expense of performance.
-                    item.GetType().GetProperty(pair.Key).SetValue(item, pair.Value);
-                    Logger.LogLine(String.Format("Set property {0} for item to {1}.", pair.Key, pair.Value));
-                }
-
-                shandler.items[sreq.security_id] = item;
-
-                if (!await shandler.WriteItemToJournal(item))
-                {
-                    throw new ProgramException("Unable to write to the journal.");
-                }
-            }
-            catch (Exception ex)
-            {
-                throw new ProgramException("Caught inner exception when setting item with commit set command.", ex);
-            }
-
-            // Success.
-            await encoder.WriteQuickHeader(200, "OK");
-            await encoder.BodyWriteSingleChunk("{ \"success\": true }");
+            var out_buffer = Encoding.UTF8.GetBytes(out_string);
+            await output_stream.WriteAsync(out_buffer, 0, out_buffer.Length);
         }
+    }
 
-        private async void HandleData(HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
+    internal delegate Task HTTPClient3Handler(ServerHandler shandler, HTTPRequest request, Stream body, ProxyHTTPEncoder encoder);
+
+    internal class HTTPClient3 : HTTPClient2
+    {
+        private ServerHandler shandler;
+        private Dictionary<String, HTTPClient3Handler> handlers;
+
+        public HTTPClient3(
+            IHTTPServerHandler shandler, 
+            HTTPDecoder decoder,
+            HTTPEncoder encoder,
+            Dictionary<String, HTTPClient3Handler> handlers
+        ) : base(shandler, decoder, encoder)
         {
-            var auth_resp = await ReadMessageFromStreamAndAuthenticate(1024 * 16, body);
-
-            if (!auth_resp.success)
-            {
-                throw new AuthenticationException();
-            }
-
-            var reply = new HandleDataReply();
-
-            reply.data = new Item[shandler.items.Count];
-
-            lock (shandler.items)
-            {
-                int x = 0;
-
-                foreach (var pair in shandler.items)
-                {
-                    // PRIVCHECK MARK
-                    if (
-                        CanUserSeeItem(auth_resp.user, pair.Value)
-                    )
-                    {
-                        reply.data[x++] = pair.Value;
-                    }
-                }
-            }
-
-            using (var de_stream = new DoubleEndedStream())
-            {
-                await encoder.WriteQuickHeader(200, "OK");
-                var tmp = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(reply));
-                await encoder.BodyWriteStream(de_stream);
-                await de_stream.WriteAsync(tmp, 0, tmp.Length);
-            }
-        }
-
-        class HandleEnumerateConfigurationsResponse
-        {
-            public bool success;
-            public Dictionary<String, String> configs;
-        }
-
-        private async void HandleEnumerateConfigurations(HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
-        {
-            var auth = await ReadMessageFromStreamAndAuthenticate(1024 * 16, body);
-
-            if (!auth.success)
-            {
-                throw new AuthenticationException();
-            }
-
-            var resp = new HandleEnumerateConfigurationsResponse();
-
-            resp.configs = new Dictionary<string, string>();
-
-            try
-            {
-                foreach (var node in Directory.EnumerateFiles(this.shandler.config_path))
-                {
-                    var fnode = Path.Combine(shandler.data_path, node);
-
-                    if (fnode.StartsWith("config_"))
-                    {
-                        var fd = File.OpenRead(fnode);
-
-                        var buf = new byte[fd.Length];
-
-                        int cnt = 0;
-
-                        while (cnt < buf.Length)
-                        {
-                            cnt += await fd.ReadAsync(buf, cnt, buf.Length - cnt);
-                        }
-
-                        var buf_text = Encoding.UTF8.GetString(buf);
-
-                        resp.configs[fnode.Substring(fnode.IndexOf("_") + 1)] = buf_text;
-
-                        fd.Dispose();
-                    }
-                }
-            } catch (Exception ex)
-            {
-                throw new ProgramException("Error happened during enumeration of configurations.", ex);
-            }
-
-            using (var de_stream = new DoubleEndedStream())
-            {
-                await encoder.WriteQuickHeader(200, "OK");
-                var tmp = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(resp));
-                await encoder.BodyWriteStream(de_stream);
-                await de_stream.WriteAsync(tmp, 0, tmp.Length);
-            }
-        }
-
-        class HandleDownloadRequest
-        {
-            public String security_id;
-        }
-
-        private async void HandleDownload(HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
-        {
-            // This URL route was never implemented with user security. The security ID itself is the security, but that
-            // could be revised.
-            //var auth = await ReadMessageFromStreamAndAuthenticate(1024 * 16, body);
-            //if (!auth.success)
-            //{
-            //    throw new AuthenticationException();
-            //}
-
-            HandleDownloadRequest req = null;
-
-            String download_sid;
-
-            if (request.query_string.Length > 0)
-            {
-                download_sid = request.query_string;
-            } else
-            {
-                //req = JsonConvert.DeserializeObject<HandleDownloadRequest>(auth.payload);
-                //download_sid = req.security_id;
-                throw new InvalidArgumentException();
-            }
-
-            Item item;
-
-            lock (shandler.items)
-            {
-                if (!shandler.items.ContainsKey(download_sid))
-                {
-                    throw new InvalidArgumentException();
-                }
-
-                item = shandler.items[download_sid];
-            }
-
-            var item_data_path = Path.Combine(shandler.data_path, item.node);
-
-            var fd = File.OpenRead(item_data_path);
-
-            ulong offset_start = 0;
-            // How can a stream be negative? Could this stream ever be negative? What purpose does it suit?
-            ulong offset_size = (ulong)fd.Length;
-            ulong total_size = (ulong)fd.Length;
-
-            String response_code = "200";
-
-            if (request.internal_headers.ContainsKey("range"))
-            {
-                var range_str = request.internal_headers["range"];
-
-                var eqndx = range_str.IndexOf("=");
-
-                if (eqndx > -1)
-                {
-                    var range_sub_str = range_str.Substring(eqndx + 1).Trim();
-                    var range_nums_strs = range_sub_str.Split("-");
-
-                    if (range_nums_strs.Length > 1)
-                    {
-                        offset_start = ulong.Parse(range_nums_strs[0]);
-
-                        if (range_nums_strs[1].Equals(""))
-                        {
-                            offset_size = (ulong)fd.Length - offset_start;
-                        }
-                        else
-                        {
-                            offset_size = ulong.Parse(range_nums_strs[1]) - offset_start + 1;
-                        }
-                        response_code = "206";
-                    }
-                }
-            }
-
-            checked
-            {
-                fd.Seek((long)offset_start, SeekOrigin.Begin);
-            }
-
-            fd.Seek((long)offset_start, SeekOrigin.Begin);
-
-            String mime_type = null;
-
-            switch (item.datatype)
-            {
-                case "mp4":
-                    mime_type = "video/mp4";
-                    break;
-                case "jpg":
-                    mime_type = "image/jpeg";
-                    break;
-            }
-
-            using (var de_stream = new LimitedStream(fd, offset_size))
-            {
-                var header = new Dictionary<String, String>();
-
-                header.Add("$response_code", response_code);
-                header.Add("$response_text", "Partial Content");
-                header.Add("content-disposition", 
-                    String.Format("inline; filename=\"{0}_{1}_{2}_{3}.{4}\"",
-                        item.datestr,
-                        item.userstr,
-                        item.devicestr,
-                        item.timestr,
-                        item.datatype
-                    )
-                );
-                header.Add("accept-ranges", "bytes");
-                header.Add("content-range", 
-                    String.Format("bytes {0}-{1}/{2}", 
-                        offset_start,
-                        offset_size + offset_start - 1,
-                        total_size
-                    )
-                );
-
-                if (mime_type != null)
-                {
-                    header.Add("content-type", mime_type);
-                }
-
-                await encoder.WriteHeader(header);
-                await encoder.BodyWriteStream(de_stream);
-            }
-        }
-
-        class HandleCommitConfigurationRequest
-        {
-            public String deviceid;
-            public String config_data;
-        }
-
-        private async void HandleCommitConfiguration(HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
-        {
-            var auth = await ReadMessageFromStreamAndAuthenticate(1024 * 16, body);
-
-            if (!auth.success)
-            {
-                throw new AuthenticationException();
-            }
-
-            if (!auth.user.admin)
-            {
-                throw new AuthenticationException();
-            }
-
-            var req = JsonConvert.DeserializeObject<HandleCommitConfigurationRequest>(auth.payload);
-
-            var fp = File.OpenWrite(
-                Path.Combine(this.shandler.config_path, String.Format("config_{0}", req.deviceid))
-            );
-
-            // TODO: *think* reliable operation and atomic as possible
-            var config_bytes_utf8 = Encoding.UTF8.GetBytes(req.config_data);
-            await fp.WriteAsync(config_bytes_utf8, 0, config_bytes_utf8.Length);
-            fp.Dispose();
-
-            await encoder.WriteQuickHeader(200, "OK");
-            await encoder.BodyWriteSingleChunk("{ \"success\": true }");
-        }
-
-        private async void HandleBatchSingleOps(HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
-        {
-            var auth = await ReadMessageFromStreamAndAuthenticate(1024 * 16, body);
-
-            if (!auth.success)
-            {
-                throw new AuthenticationException();
-            }
-
-            var req = JsonConvert.DeserializeObject<HandleBatchSingleOpsRequest>(auth.payload);
-
-            List<String[]> failed = new List<String[]>();
-
-            var tasks = new List<Task<bool>>();
-
-            foreach (var op in req.ops)
-            {
-                if (op.Length < 3)
-                {
-                    continue;
-                }
-
-                var sid = op[0];
-                var key = op[1];
-                var val = op[2];
-
-                lock (shandler.items)
-                {
-                    if (shandler.items.ContainsKey(sid))
-                    {
-                        try
-                        {
-                            shandler.items[sid].GetType().GetProperty(key).SetValue(shandler.items[sid], val);
-                            tasks.Add(shandler.WriteItemToJournal(shandler.items[sid]));
-                        }
-                        catch (Exception ex)
-                        {
-                            failed.Add(new String[] { sid, key, val, ex.ToString() });
-                        }
-                    }
-                }
-            }
-
-            Task.WaitAll(tasks.ToArray());
-
-            using (var de_stream = new DoubleEndedStream())
-            {
-                var resp = new HandleBatchSingleOpsResponse();
-
-                resp.success = true;
-                resp.failed = failed.ToArray();
-
-                await encoder.WriteQuickHeader(200, "OK");
-                var tmp = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(resp));
-                await encoder.BodyWriteStream(de_stream);
-                await de_stream.WriteAsync(tmp, 0, tmp.Length);
-            }
-        }
-
-        struct HandleDeviceConfigResponse
-        {
-            public bool success;
-            public String config_data;
-        }
-
-        private async void HandleDeviceConfig(HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
-        {
-            var auth = await ReadMessageFromStreamAndAuthenticate(1024 * 16, body);
-
-            //if (!auth.success)
-            //{
-            //    throw new AuthenticationException();
-            //}
-
-            var req = JsonConvert.DeserializeObject<HandleCommitConfigurationRequest>(auth.payload);
-
-            var path = Path.Combine(this.shandler.config_path, String.Format("config_{0}", req.deviceid));
-
-            if (!File.Exists(path))
-            {
-                var fp = File.OpenWrite(
-                    path
-                );
-
-                var config_bytes_utf8 = Encoding.UTF8.GetBytes(req.config_data);
-                await fp.WriteAsync(config_bytes_utf8, 0, config_bytes_utf8.Length);
-                fp.Dispose();
-
-                HandleDeviceConfigResponse resp;
-
-                resp.success = true;
-                resp.config_data = req.config_data;
-
-                await encoder.WriteQuickHeader(200, "OK");
-                await encoder.BodyWriteSingleChunk(JsonConvert.SerializeObject(resp));
-            }
-            else
-            {
-                var fp = File.OpenRead(
-                    path
-                );
-
-                var config_bytes_utf8 = new byte[fp.Length];
-                await fp.ReadAsync(config_bytes_utf8, 0, config_bytes_utf8.Length);
-                fp.Dispose();
-
-                HandleDeviceConfigResponse resp;
-
-                resp.success = true;
-                resp.config_data = Encoding.UTF8.GetString(config_bytes_utf8);
-
-                await encoder.WriteQuickHeader(200, "OK");
-                await encoder.BodyWriteSingleChunk(JsonConvert.SerializeObject(resp));
-            }
+            this.shandler = shandler as ServerHandler;
+            this.handlers = handlers;
         }
 
         /// <summary>
@@ -654,43 +178,26 @@ namespace MDACS.Database
         /// <returns>Asynchronous task object.</returns>
         public override async Task HandleRequest2(HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
         {
-            Logger.LogLine(String.Format("url={0}", request.url));
-
-            switch (request.url_absolute)
+            try
             {
-                case "/device-config":
-                    HandleDeviceConfig(request, body, encoder);
-                    break;
-                case "/upload":
-                    await this.upload_handler(this.shandler, request, body, encoder);
-                    break;
-                case "/download":
-                    HandleDownload(request, body, encoder);
-                    break;
-                case "/data":
-                    HandleData(request, body, encoder);
-                    break;
-                case "/delete":
+                Logger.LogLine(String.Format("url={0}", request.url));
+
+                if (!this.handlers.ContainsKey(request.url_absolute))
+                {
                     throw new NotImplementedException();
-                case "/commit":
-                    throw new NotImplementedException();
-                case "/commitset":
-                    HandleCommitSet(request, body, encoder);
-                    break;
-                case "/enumerate-configurations":
-                    HandleEnumerateConfigurations(request, body, encoder);
-                    break;
-                case "/commit-configuration":
-                    HandleCommitConfiguration(request, body, encoder);
-                    break;
-                case "/commit_batch_single_ops":
-                    HandleBatchSingleOps(request, body, encoder);
-                    break;
+                }
+
+                await this.handlers[request.url_absolute](this.shandler, request, body, encoder);
+            } catch (Exception ex)
+            {
+                Console.WriteLine("==== EXCEPTION ====");
+                Console.WriteLine(ex.Message);
+                Console.WriteLine(ex.StackTrace);
             }
         }
     }
 
-    class ServerHandler : IHTTPServerHandler
+    internal class ServerHandler : IHTTPServerHandler
     {
         public Dictionary<String, Item> items;
         public String auth_url;
@@ -718,6 +225,8 @@ namespace MDACS.Database
             var mj = File.OpenText(metajournal_path);
 
             var hasher = MD5.Create();
+
+            Console.WriteLine("Reading journal into memory.");
 
             while (!mj.EndOfStream)
             {
@@ -752,6 +261,8 @@ namespace MDACS.Database
                 }
             }
 
+            Console.WriteLine("Done reading journal into memory.");
+
             mj.Dispose();
         }
 
@@ -778,29 +289,80 @@ namespace MDACS.Database
 
         public override HTTPClient CreateClient(IHTTPServerHandler shandler, HTTPDecoder decoder, HTTPEncoder encoder)
         {
+            var handlers = new Dictionary<String, HTTPClient3Handler>();
+
+            handlers.Add("/upload", HandleUpload.Action);
+            handlers.Add("/device-config", HandleDeviceConfig.Action);
+            handlers.Add("/commit_batch_single_ops", HandleBatchSingleOps.Action);
+            handlers.Add("/download", HandleDownload.Action);
+            handlers.Add("/enumerate-configurations", HandleEnumerateConfigurations.Action);
+            handlers.Add("/data", HandleData.Action);
+            handlers.Add("/commitset", HandleCommitSet.Action);
+            handlers.Add("/commit-configuration", HandleCommitConfiguration.Action);
+
+            // missing /delete
+            // missing /commit
+            //      Prefer /commitset and /commit-batch-single-ops due to atomic compatibility.
             return new HTTPClient3(
-                shandler, 
-                decoder, 
-                encoder,
-                HandleUpload.Action
+                shandler: shandler, 
+                decoder: decoder, 
+                encoder: encoder,
+                handlers: handlers
             );
         }
+    }
+
+    struct ProgramConfig
+    {
+        public String metajournal_path;
+        public String data_path;
+        public String config_path;
+        public String auth_url;
     }
 
     class Program
     {
         static void Main(string[] args)
         {
+            if (args.Length < 2)
+            {
+                Console.WriteLine("Provide path or file that contains the JSON configuration. If file does not exit then default one will be created.");
+                return;
+            }
+
+            if (!File.Exists(args[1]))
+            {
+                ProgramConfig defcfg = new ProgramConfig {
+                    metajournal_path = "The file path to the metadata journal.",
+                    data_path = "The path to the directory containing the data files backing the journal.",
+                    config_path = "The path to the directory holding device configuration files.",
+                    auth_url = "The HTTP or HTTPS URL to the authentication service.",
+                };
+
+                var defcfgfp = File.CreateText(args[1]);
+                defcfgfp.Write(JsonConvert.SerializeObject(defcfg, Formatting.Indented));
+                defcfgfp.Dispose();
+
+                Console.WriteLine("Default configuration created at location specified.");
+                return;
+            }
+
+            var cfgfp = File.OpenText(args[1]);
+
+            var cfg = JsonConvert.DeserializeObject<ProgramConfig>(cfgfp.ReadToEnd());
+
+            cfgfp.Dispose();
+
             var handler = new ServerHandler(
-                metajournal_path: "c:\\users\\kmcgu\\Desktop\\metajournal-2017-12-10",
-                data_path: @"Y:\camerasys_secure\data",
-                config_path: @"Y:\camerasys_secure\",
-                auth_url: "https://epdmdacs.kmcg3413.net:34002",
-                db_url: "https://epdmdacs.kmcg3413.net:34001"
+                metajournal_path: cfg.metajournal_path,
+                data_path: cfg.data_path,
+                config_path: cfg.config_path,
+                auth_url: cfg.auth_url,
+                db_url: "??? needed ???"
             );
 
-            var server = new HTTPServer<ServerHandler>(handler, "c:\\users\\kmcgu\\Desktop\\test.pfx", "hello");
-            server.Start();
+            var server = new HTTPServer<ServerHandler>(handler, "test.pfx", "hello");
+            server.Start().Wait();
 
             /*
             var config = new Ceen.Httpd.ServerConfig();

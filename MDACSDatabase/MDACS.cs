@@ -280,23 +280,36 @@ namespace MDACS.API
             Stream data;
             StreamReader reader;
 
+            Console.WriteLine(String.Format("creating web request to {0}", auth_url));
+
             req = WebRequest.Create(auth_url);
 
             req.Method = "POST";
             req.ContentType = "text/json";
 
-            data = req.GetRequestStream();
+            Console.WriteLine("getting request stream");
+
+            data = await req.GetRequestStreamAsync();
             var buf = Encoding.UTF8.GetBytes(msg);
             await data.WriteAsync(buf, 0, buf.Length);
+
+            Console.WriteLine("closing request stream");
             data.Close();
 
-            resp = req.GetResponse();
+            Console.WriteLine("getting response");
+            resp = await req.GetResponseAsync();
+
+            Console.WriteLine("got response");
 
             data = resp.GetResponseStream();
 
+            Console.WriteLine("got response stream");
+
             reader = new StreamReader(data);
 
-            return reader.ReadToEnd();
+            Console.WriteLine("reading response until end by returning data");
+
+            return await reader.ReadToEndAsync();
         }
 
         public static string GetAuthChallenge(string auth_url)
@@ -379,10 +392,13 @@ namespace MDACS.API
 
             if (msg_decoded == null)
             {
+                Console.WriteLine("msg_decoded was null");
                 var tmp = new AuthCheckResponse();
                 tmp.success = false;
                 return tmp;
             }
+
+            Console.WriteLine("msg was decoded");
 
             return await AuthenticateMessageAsync(
                 auth_url,
@@ -393,6 +409,7 @@ namespace MDACS.API
         public static async Task<AuthCheckResponse> AuthenticateMessageAsync(String auth_url, Msg msg)
         {
             if (msg.payload == null) {
+                Console.WriteLine("authenticating message with no payload");
                 var checknp = new AuthCheckNoPayload();
 
                 checknp.hash = msg.auth.hash;
@@ -403,8 +420,12 @@ namespace MDACS.API
                     JsonConvert.SerializeObject(checknp)
                 );
 
+                Console.WriteLine("got verify result");
+
                 return JsonConvert.DeserializeObject<AuthCheckResponse>(resp_string);
             }
+
+            Console.WriteLine("authenticating message with payload");
 
             var check = new AuthCheckPayload();
 
@@ -418,10 +439,14 @@ namespace MDACS.API
             check.phash = phash;
             check.challenge = msg.auth.challenge;
 
+            Console.WriteLine("doing actual verify-payload call");
+
             var resp_string2 = await AuthTransactionAsync(
                 String.Format("{0}/verify-payload", auth_url),
                 JsonConvert.SerializeObject(check)
             );
+
+            Console.WriteLine("returning results");
 
             return JsonConvert.DeserializeObject<AuthCheckResponse>(resp_string2);
         }

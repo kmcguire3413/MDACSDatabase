@@ -86,17 +86,10 @@ namespace MDACS.Server
 #if DOUBLE_ENDED_STREAM_DEBUG
             Console.WriteLine("{0}.Read({1}, {2}, {3})", this, buffer, offset, count);
 #endif
-            // I feel like using the full fledged semaphore here could be done more efficient
-            // since this will likely run in an async environment; however, with consideration
-            // that the async environment could run tasks on different threads then it seems
-            // correct to use the semaphore thread version.
-            // --kmcguire
-            // However, what I would like is to inspect and possibly reimplement the ReadAsync
-            // method to better account for this. I feel like ReadAsync must lock down a thread
-            // in order to service this semaphore when for the sake of efficiency it should instead
-            // cause a task to be put into a pending mode and awoken (instead of sleeping a thread)?
-            // --kmcguire
+            
             wh.Wait();
+
+            Console.WriteLine("wh.Wait() completed; now locking chunks");
 
             lock (chunks)
             {

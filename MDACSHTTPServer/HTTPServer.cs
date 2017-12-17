@@ -27,7 +27,7 @@ namespace MDACS.Server
             this.cert_private_key_password = cert_private_key_password;
         }
 
-        public async void Start() {
+        public async Task Start() {
             TcpListener listener = new TcpListener(IPAddress.Any, 8080);
 
             listener.Start();
@@ -44,14 +44,23 @@ namespace MDACS.Server
                 {
                     Console.WriteLine("Authenticating as server through SSL/TLS.");
 
-                    await ssl_sock.AuthenticateAsServerAsync(x509);
+                    try
+                    {
+                        await ssl_sock.AuthenticateAsServerAsync(x509);
 
-                    var http_decoder = new HTTPDecoder(ssl_sock);
-                    var http_encoder = new HTTPEncoder(ssl_sock);
-                    var http_client = handler.CreateClient(handler, http_decoder, http_encoder);
+                        var http_decoder = new HTTPDecoder(ssl_sock);
+                        var http_encoder = new HTTPEncoder(ssl_sock);
+                        var http_client = handler.CreateClient(handler, http_decoder, http_encoder);
 
-                    Console.WriteLine("Handling client.");
-                    await http_client.Handle();
+                        Console.WriteLine("Handling client.");
+
+                        await http_client.Handle();
+                    } catch (Exception e)
+                    {
+                        Console.WriteLine("==== EXCEPTION ON CLIENT ACCEPT ====");
+                        Console.WriteLine(e.ToString());
+                        Console.WriteLine(e.StackTrace);
+                    }
                 });
 #pragma warning restore 4014
             }
