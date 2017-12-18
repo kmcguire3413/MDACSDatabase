@@ -99,23 +99,28 @@ namespace MDACS.Server
                 throw new Exception("Headers must be set first.");
             }
 
+            /*
+
             if (header.ContainsKey("content-length"))
             {
-                header["content-length"] = length.ToString();
+                header.Remove("content-length");
+                //header["content-length"] = length.ToString();
             } else
             {
-                header.Add("content-length", length.ToString());
+                //header.Add("content-length", length.ToString());
             }
 
-            //header["content-encoding"] = "bytes";
+            //header["transfer-encoding"] = "bytes";
 
             await DoHeaders();
 
+            */
 #if DEBUG_HTTP_ENCODER
             Console.WriteLine("{0}.WriteSingleChunk: Sending single chunk.", this);
 #endif
-
-            byte[] tmp = new byte[2];
+            // TODO: fix incompatability with Python pycommon or fix pycommon
+            // BUG: fix incompatability with Python pycommon or fix pycommon
+            /*byte[] tmp = new byte[2];
             tmp[0] = (byte)'\r';
             tmp[1] = (byte)'\n';
 
@@ -127,7 +132,10 @@ namespace MDACS.Server
 
             await s.WriteAsync(tmp, 0, tmp.Length);
 
-            await s.FlushAsync();
+            await s.FlushAsync();*/
+
+            await BodyWriteFirstChunk(chunk, offset, length);
+            await BodyWriteNoChunk();
 
             state = HTTPEncoderState.SendingHeaders;
         }
