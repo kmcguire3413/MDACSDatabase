@@ -27,8 +27,8 @@ namespace MDACS.Server
             this.cert_private_key_password = cert_private_key_password;
         }
 
-        public async Task Start() {
-            TcpListener listener = new TcpListener(IPAddress.Any, 8080);
+        public async Task Start(ushort port) {
+            TcpListener listener = new TcpListener(IPAddress.Any, port);
 
             listener.Start();
 

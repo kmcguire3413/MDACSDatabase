@@ -157,9 +157,14 @@ namespace MDACS.App
 
         }
 
-        public static async Task Challenge(ServerHandler shandler, HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
+        public static async Task Redirect(HTTPRequest request, Stream body, ProxyHTTPEncoder encoder, String new_url)
         {
 
+        }
+
+        public static async Task Challenge(ServerHandler shandler, HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
+        {
+            
         }
 
         public static async Task Utility(ServerHandler shandler, HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)

@@ -312,7 +312,7 @@ namespace MDACS.API
             return await reader.ReadToEndAsync();
         }
 
-        public static string GetAuthChallenge(string auth_url)
+        public static async Task<String> GetAuthChallengeAsync(string auth_url)
         {
             WebRequest req;
             WebResponse resp;
@@ -327,10 +327,10 @@ namespace MDACS.API
             req.ContentType = "text/json";
             req.ContentLength = 0;
 
-            data = req.GetRequestStream();
+            data = await req.GetRequestStreamAsync();
             data.Close();
 
-            resp = req.GetResponse();
+            resp = await req.GetResponseAsync();
 
             data = resp.GetResponseStream();
 
@@ -460,7 +460,11 @@ namespace MDACS.API
             byte[] complete_hash;
             AuthCompletePacket packet;
 
-            challenge = GetAuthChallenge(auth_url);
+            var tsk = GetAuthChallengeAsync(auth_url);
+
+            tsk.Wait();
+
+            challenge = tsk.Result;
 
             hasher = new SHA512Managed();
 

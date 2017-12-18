@@ -201,7 +201,6 @@ namespace MDACS.Database
     {
         public Dictionary<String, Item> items;
         public String auth_url;
-        public String db_url;
         public String metajournal_path;
         public String data_path;
         public String config_path;
@@ -210,14 +209,12 @@ namespace MDACS.Database
             String metajournal_path,
             String data_path,
             String config_path,
-            String auth_url,
-            String db_url
+            String auth_url
         )
         {
             this.data_path = data_path;
             this.config_path = config_path;
             this.auth_url = auth_url;
-            this.db_url = db_url;
             this.metajournal_path = metajournal_path;
 
             items = new Dictionary<string, Item>();
@@ -318,6 +315,7 @@ namespace MDACS.Database
         public String data_path;
         public String config_path;
         public String auth_url;
+        public ushort port;
     }
 
     class Program
@@ -337,6 +335,7 @@ namespace MDACS.Database
                     data_path = "The path to the directory containing the data files backing the journal.",
                     config_path = "The path to the directory holding device configuration files.",
                     auth_url = "The HTTP or HTTPS URL to the authentication service.",
+                    port = 34001,
                 };
 
                 var defcfgfp = File.CreateText(args[1]);
@@ -357,12 +356,11 @@ namespace MDACS.Database
                 metajournal_path: cfg.metajournal_path,
                 data_path: cfg.data_path,
                 config_path: cfg.config_path,
-                auth_url: cfg.auth_url,
-                db_url: "??? needed ???"
+                auth_url: cfg.auth_url
             );
 
             var server = new HTTPServer<ServerHandler>(handler, "test.pfx", "hello");
-            server.Start().Wait();
+            server.Start(cfg.port).Wait();
 
             /*
             var config = new Ceen.Httpd.ServerConfig();
