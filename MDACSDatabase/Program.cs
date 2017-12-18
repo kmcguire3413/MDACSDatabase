@@ -21,7 +21,7 @@ using static MDACS.Server.HTTPClient2;
 
 namespace MDACS.Database
 {
-    public struct Item
+    public class Item
     {
         public String security_id;
         public String node;
@@ -114,9 +114,13 @@ namespace MDACS.Database
 
             Console.WriteLine("Done reading authenticated payload.");
 
+            var buf_utf8_string = Encoding.UTF8.GetString(buf, 0, pos);
+
+            Console.WriteLine(buf_utf8_string);
+
             var resp = await MDACS.API.Auth.AuthenticateMessageAsync(
                 shandler.auth_url,
-                Encoding.UTF8.GetString(buf, 0, pos)
+                buf_utf8_string
             );
 
             Console.WriteLine("Handing back result from authenticated payload.");
@@ -265,7 +269,7 @@ namespace MDACS.Database
 
         public async Task<bool> WriteItemToJournal(Item item)
         {
-            using (var mj = File.OpenWrite(this.metajournal_path))
+            using (var mj = File.Open(this.metajournal_path, FileMode.Append))
             {
                 var meta = Item.Serialize(item);
                 var hasher = MD5.Create();
@@ -274,7 +278,7 @@ namespace MDACS.Database
                     hasher.ComputeHash(
                         Encoding.UTF8.GetBytes(meta)
                     )
-                ).Replace("-", "");
+                ).Replace("-", "").ToLower();
 
                 byte[] line_bytes = Encoding.UTF8.GetBytes(String.Format("{0}:{1}\n", hash, meta));
 
@@ -322,13 +326,13 @@ namespace MDACS.Database
     {
         static void Main(string[] args)
         {
-            if (args.Length < 2)
+            if (args.Length < 1)
             {
                 Console.WriteLine("Provide path or file that contains the JSON configuration. If file does not exit then default one will be created.");
                 return;
             }
 
-            if (!File.Exists(args[1]))
+            if (!File.Exists(args[0]))
             {
                 ProgramConfig defcfg = new ProgramConfig {
                     metajournal_path = "The file path to the metadata journal.",
@@ -338,7 +342,7 @@ namespace MDACS.Database
                     port = 34001,
                 };
 
-                var defcfgfp = File.CreateText(args[1]);
+                var defcfgfp = File.CreateText(args[0]);
                 defcfgfp.Write(JsonConvert.SerializeObject(defcfg, Formatting.Indented));
                 defcfgfp.Dispose();
 
@@ -346,7 +350,7 @@ namespace MDACS.Database
                 return;
             }
 
-            var cfgfp = File.OpenText(args[1]);
+            var cfgfp = File.OpenText(args[0]);
 
             var cfg = JsonConvert.DeserializeObject<ProgramConfig>(cfgfp.ReadToEnd());
 

@@ -29,13 +29,21 @@ namespace MDACS.Server
         {
         }
 
+        /// <summary>
+        /// Must be implemented.
+        /// </summary>
+        /// <param name="request"></param>
+        /// <param name="body"></param>
+        /// <param name="encoder"></param>
+        /// <returns></returns>
         public virtual async Task HandleRequest2(HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
         {
             throw new Exception("Not Implemented");
         }
 
         /// <summary>
-        /// 
+        /// Performs higher-level interpretation of application layer data and provides that in a higher level form
+        /// for consumption by the upper layers.
         /// </summary>
         /// <param name="header"></param>
         /// <param name="body"></param>

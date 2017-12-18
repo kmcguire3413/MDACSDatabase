@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace MDACS.Server
@@ -265,14 +266,15 @@ namespace MDACS.Server
         {
             var q = new Queue<ProxyHTTPEncoder>();
 
-            var qchanged = new AsyncManualResetEvent();
+            var qchanged = new SemaphoreSlim(0);
+            var runner_exit = false;
 
             // This task watches the `q` queue and starts and removes
             // proxy objects representing the HTTP encoder. Each request
             // gets its own proxy object and all methods on the proxy either
             // block or buffer until the proxy object becomes ready.
 #pragma warning disable 4014
-            Task.Run(async () =>
+            var runner_task = Task.Run(async () =>
             {
                 while (true)
                 {
@@ -281,12 +283,15 @@ namespace MDACS.Server
                     Console.WriteLine("waiting on qchanged");
                     await qchanged.WaitAsync();
 
-                    Console.WriteLine("reset qchanged");
-                    qchanged.Reset();
-
                     // Only lock long enough to get the first item.
                     lock (q)
                     {
+                        if (runner_exit && q.Count == 0)
+                        {
+                            Console.WriteLine("runner has exited; closing the connection");
+                            return;
+                        }
+
                         phe = q.Peek();
                     }
 
@@ -315,7 +320,9 @@ namespace MDACS.Server
             });
 #pragma warning restore 4014
 
-            while (true)
+            bool close_connection = false;
+
+            while (!close_connection)
             {
                 Console.WriteLine("###### Handling the next request. ######");
                 // Need a way for this to block (await) until the body has been completely
@@ -324,13 +331,13 @@ namespace MDACS.Server
 
                 Console.WriteLine("Header to dictionary.");
 
-                var header = LineHeaderToDictionary(line_header);
-
-                if (header == null)
+                if (line_header == null)
                 {
                     Console.WriteLine("Connection has been lost.");
                     break;
                 }
+
+                var header = LineHeaderToDictionary(line_header);
 
                 Stream body;
 
@@ -359,18 +366,21 @@ namespace MDACS.Server
                     (body, body_reading_task) = await decoder.ReadBody(HTTPDecoderBodyType.NoBody());
                 }
 
-                bool close_connection = true;
-
                 if (header.ContainsKey("connection") && !header["connection"].ToLower().Equals("close"))
                 {
                     close_connection = false;
+                } else
+                {
+                    close_connection = true;
                 }
+
+                Console.WriteLine($"close_connection={close_connection}");
 
                 var phe = new ProxyHTTPEncoder(encoder, close_connection);
 
                 q.Enqueue(phe);
 
-                qchanged.Set();
+                qchanged.Release();
 
                 Console.WriteLine("Allowing handling of request.");
 
@@ -385,6 +395,17 @@ namespace MDACS.Server
                     await body_reading_task;
                 }
             }
+
+            Console.WriteLine("httpclient handler trying to exit; once runner has exited");
+            // Signal the runner that it is time to exit.
+            runner_exit = true;
+            // Ensure the runner can continue.
+            qchanged.Release();
+            runner_task.Wait();
+
+            Console.WriteLine("done waiting on runner; now exiting handler");
+
+            // The stream is (expected to be) closed once this method is exited.
         }
     }
 }

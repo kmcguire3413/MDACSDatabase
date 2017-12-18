@@ -115,7 +115,7 @@ namespace MDACS.Database
                 throw new ProgramException("The upload byte length of the destination never reached the intended stream size, after moving from the temp file.");
             }
 
-            Item item;
+            Item item = new Item();
 
             item.datasize = hdr.datasize;
             item.datatype = hdr.datatype;

@@ -80,6 +80,10 @@ namespace MDACS.Server
                 await s.WriteAsync(line_bytes, 0, line_bytes.Length);
             }
 
+            await s.FlushAsync();
+
+            this.header = null;
+
             state = HTTPEncoderState.SendingBody;
         }
 
@@ -103,7 +107,7 @@ namespace MDACS.Server
                 header.Add("content-length", length.ToString());
             }
 
-            header["content-encoding"] = "ASCII";
+            //header["content-encoding"] = "bytes";
 
             await DoHeaders();
 
@@ -113,13 +117,17 @@ namespace MDACS.Server
 
             byte[] tmp = new byte[2];
             tmp[0] = (byte)'\r';
-            tmp[0] = (byte)'\n';
+            tmp[1] = (byte)'\n';
+
+            Console.WriteLine($"offset={offset} length={length} chunk={chunk}");
 
             await s.WriteAsync(tmp, 0, tmp.Length);
 
             await s.WriteAsync(chunk, offset, length);
 
             await s.WriteAsync(tmp, 0, tmp.Length);
+
+            await s.FlushAsync();
 
             state = HTTPEncoderState.SendingHeaders;
         }
@@ -198,6 +206,8 @@ namespace MDACS.Server
 
             byte[] chunk_header = Encoding.UTF8.GetBytes("0\r\n\r\n");
             await s.WriteAsync(chunk_header, 0, chunk_header.Length);
+
+            await s.FlushAsync();
 
             state = HTTPEncoderState.SendingHeaders;
         }

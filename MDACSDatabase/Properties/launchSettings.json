@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "MDACSDatabase": {
+      "commandName": "Project",
+      "commandLineArgs": "dbconfig.json",
+      "workingDirectory": "C:\\Users\\kmcgu\\Desktop"
+    }
+  }
+}

@@ -55,6 +55,11 @@ namespace MDACS.Server
                         Console.WriteLine("Handling client.");
 
                         await http_client.Handle();
+
+                        ssl_sock.Close();
+                        ssl_sock.Dispose();
+                        client.Close();
+                        client.Dispose();
                     } catch (Exception e)
                     {
                         Console.WriteLine("==== EXCEPTION ON CLIENT ACCEPT ====");

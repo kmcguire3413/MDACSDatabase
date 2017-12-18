@@ -86,6 +86,10 @@ namespace MDACS.Server
             return tmp;
         }
 
+        /// <summary>
+        /// Returns null if the connection is lost, otherwise, the header is returned as a list of strings for each line of the header.
+        /// </summary>
+        /// <returns>Null if connection is lost or list of strings representing the lines of the header.</returns>
         public async Task<List<String>> ReadHeader()
         {
             var header = new List<String>();

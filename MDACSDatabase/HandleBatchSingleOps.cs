@@ -26,10 +26,14 @@ namespace MDACS.Database
         {
             var auth = await Helpers.ReadMessageFromStreamAndAuthenticate(shandler, 1024 * 16, body);
 
+            Console.WriteLine(String.Format("auth.success={0}", auth.success));
+
             if (!auth.success)
             {
                 throw new UnauthorizedException();
             }
+
+            Console.WriteLine(String.Format("auth.payload={0}", auth.payload));
 
             var req = JsonConvert.DeserializeObject<HandleBatchSingleOpsRequest>(auth.payload);
 
@@ -54,8 +58,14 @@ namespace MDACS.Database
                     {
                         try
                         {
-                            shandler.items[sid].GetType().GetProperty(key).SetValue(shandler.items[sid], val);
-                            tasks.Add(shandler.WriteItemToJournal(shandler.items[sid]));
+                            // Must pull locally, make change, then push into items. Else, we only modify our
+                            // frame local value. This is because Item is a struct/value type and not a reference
+                            // type in order to keep memory more compact.
+                            var tmp = shandler.items[sid];
+                            tmp.GetType().GetField(key).SetValue(shandler.items[sid], val);
+                            shandler.items[sid] = tmp;
+
+                            tasks.Add(shandler.WriteItemToJournal(tmp));
                         }
                         catch (Exception ex)
                         {

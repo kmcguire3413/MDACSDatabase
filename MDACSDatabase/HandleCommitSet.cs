@@ -77,7 +77,7 @@ namespace MDACS.Database
                 foreach (var pair in sreq.meta)
                 {
                     // Reflection simplified coding time at the expense of performance.
-                    item.GetType().GetProperty(pair.Key).SetValue(item, pair.Value);
+                    item.GetType().GetField(pair.Key).SetValue(item, pair.Value);
                     Logger.LogLine(String.Format("Set property {0} for item to {1}.", pair.Key, pair.Value));
                 }
 

@@ -448,7 +448,11 @@ namespace MDACS.API
 
             Console.WriteLine("returning results");
 
-            return JsonConvert.DeserializeObject<AuthCheckResponse>(resp_string2);
+            var resp = JsonConvert.DeserializeObject<AuthCheckResponse>(resp_string2);
+
+            resp.payload = msg.payload;
+
+            return resp;
         }
 
         public static string BuildAuthWithPayload(string auth_url, string username, string password, string payload)
