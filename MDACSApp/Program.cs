@@ -147,47 +147,12 @@ namespace MDACS.App
 
         }
 
-        public static async Task EnumerateConfigurations(ServerHandler shandler, HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
-        {
-
-        }
-
         public static async Task Viewer(ServerHandler shandler, HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
         {
 
         }
 
-        public static async Task Redirect(HTTPRequest request, Stream body, ProxyHTTPEncoder encoder, String new_url)
-        {
-
-        }
-
-        public static async Task Challenge(ServerHandler shandler, HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
-        {
-            
-        }
-
         public static async Task Utility(ServerHandler shandler, HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
-        {
-
-        }
-
-        public static async Task CommitSet(ServerHandler shandler, HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
-        {
-
-        }
-
-        public static async Task CommitBatchSingleOps(ServerHandler shandler, HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
-        {
-
-        }
-
-        public static async Task Data(ServerHandler shandler, HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
-        {
-
-        }
-
-        public static async Task Download(ServerHandler shandler, HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
         {
 
         }

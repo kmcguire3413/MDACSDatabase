@@ -6,6 +6,112 @@ using System.Threading.Tasks;
 
 namespace MDACS.Server
 {
+    // 
+    public class StreamReaderHelper
+    {
+        public Stream stream;
+        public byte[] buf;
+        public int ndx;
+
+        public StreamReaderHelper(Stream stream, int maxbufsize)
+        {
+            this.stream = stream;
+            this.buf = new byte[maxbufsize];
+            this.ndx = 0;
+        }
+
+        public int BufSizeNow() => ndx;
+
+        public async Task<int> ReadSome()
+        {
+            if (BufSpaceLeft() < 1)
+            {
+                throw new InvalidOperationException();
+            }
+
+            int cnt = 0;
+
+            try
+            {
+                cnt = await stream.ReadAsync(buf, ndx, buf.Length - ndx);
+            } catch (IOException ex)
+            {
+                throw new InvalidOperationException("I/O exception when trying to read", ex);
+            }
+
+            if (cnt < 1)
+            {
+                throw new InvalidOperationException("I/O read returned less than one byte");
+            }
+
+            ndx += cnt;
+
+            return cnt;
+        }
+
+        public int BufSpaceLeft() => buf.Length - ndx;
+
+        public void ShiftBufBack(int amount)
+        {
+            Array.Copy(buf, amount, buf, 0, ndx - amount);
+            ndx -= amount;
+        }
+
+        public async Task<byte[]> ReadLine()
+        {
+            int k = 0;
+
+            do
+            {
+                k = Array.IndexOf(buf, (byte)10, 0, ndx);
+
+                if (k < 0)
+                    await ReadSome();
+            } while (k < 0);
+
+            var ret = new byte[k];
+
+            Array.Copy(buf, 0, ret, 0, k);
+
+            // Get line and the \n at the end (plus one below).
+            ShiftBufBack(k + 1);
+
+            return ret;
+        }
+
+        public async Task<byte[]> ReadSpecificSize(int size)
+        {
+            var tmp = new byte[size];
+            int got = 0;
+
+            while (got < size)
+            {
+                if (BufSizeNow() < 1)
+                    await ReadSome();
+
+                if (got + ndx > size)
+                {
+                    // Take only part of intermediate buffer.
+                    var only = size - got;
+
+                    Array.Copy(buf, 0, tmp, got, only);
+
+                    got += only;
+
+                    ShiftBufBack(only);
+                } else
+                {
+                    // Take entire intermediate buffer.
+                    Array.Copy(buf, 0, tmp, got, ndx);
+                    got += ndx;
+                    ndx = 0;
+                }
+            }
+
+            return tmp;
+        }
+    }
+
     public class HTTPDecoderBodyType
     {
         public enum MyType
@@ -43,47 +149,12 @@ namespace MDACS.Server
     public class HTTPDecoder
     {
         private Stream s;
-        private byte[] ms;
-        private int last_write_pos;
+        private StreamReaderHelper s_helper;
 
         public HTTPDecoder(Stream s)
         {
             this.s = s;
-            this.ms = new byte[1024 * 16];
-            this.last_write_pos = 0;
-        }
-
-        public async Task<int> ReadChunk()
-        {
-            if (ms.Length - last_write_pos < 1)
-            {
-                throw new Exception("Out of buffer space looking for header.");
-            }
-
-            var cnt = await s.ReadAsync(ms, last_write_pos, ms.Length - last_write_pos);
-            last_write_pos += cnt;
-
-            return cnt;
-        }
-
-        public async Task<byte[]> TakeChunkPrefix(int size)
-        {
-            var tmp = new byte[size];
-
-            // Copy into output buffer `tmp`.
-            Array.Copy(ms, tmp, size);
-            // Copy postfix onto prefix at beginning.
-            Array.Copy(ms, size, ms, 0, last_write_pos - size);
-
-            if (last_write_pos - size > 0)
-            {
-                last_write_pos = last_write_pos - size;
-            } else
-            {
-                last_write_pos = 0;
-            }
-
-            return tmp;
+            this.s_helper = new StreamReaderHelper(s, 1024 * 16);
         }
 
         /// <summary>
@@ -93,88 +164,22 @@ namespace MDACS.Server
         public async Task<List<String>> ReadHeader()
         {
             var header = new List<String>();
-            int line_end_pos = -1;
+            String line_utf8_str;
 
             do
             {
-                if (line_end_pos < 0)
+                var line = await s_helper.ReadLine();
+
+                line_utf8_str = Encoding.UTF8.GetString(line).TrimEnd();
+
+                if (line_utf8_str.Length > 0)
                 {
-                    var cnt = await ReadChunk();
-
-                    Console.WriteLine("cnt={0} from ReadChunk", cnt);
-
-                    if (cnt < 1)
-                    {
-                        return null;
-                    }
+                    Console.WriteLine("line_utf8_str={0}", line_utf8_str);
+                    header.Add(line_utf8_str);
                 }
-
-                Console.WriteLine(String.Format("ReadHeader: last_write_pos={0}", last_write_pos));
-
-                // Check if we have a complete line in the buffer.
-                line_end_pos = Array.FindIndex(ms, 0, last_write_pos, b => b == 10);
-
-                Console.WriteLine(String.Format("PRE:line_end_pos={0}", line_end_pos));
-
-                if (line_end_pos > -1)
-                {
-                    var line = await TakeChunkPrefix(line_end_pos + 1);
-                    var line_utf8_str = Encoding.UTF8.GetString(line).TrimEnd();
-
-                    if (line_utf8_str.Length == 0)
-                    {
-                        Console.WriteLine("Read blank line after header.");
-                        break;
-                    }
-                    else
-                    {
-                        Console.WriteLine("line_utf8_str={0}", line_utf8_str);
-                        header.Add(line_utf8_str);
-                    }
-                }
-
-                Console.WriteLine(String.Format("POST:line_end_pos={0}", line_end_pos));
-            } while (true);
-
-            Console.WriteLine("Done reading header.");
+            } while (line_utf8_str.Length > 0);
 
             return header;
-        }
-
-        private async Task<(byte[], int, String)> ReadLineOutOfStream(int max_line_size, byte[] slack, int slack_size)
-        {
-            var buf = new byte[max_line_size];
-            int pos = 0;
-            int ndx = 0;
-
-            if (slack != null && slack_size > 0)
-            {
-                Array.Copy(slack, buf, slack_size);
-                pos = slack_size;
-            }
-
-            do
-            {
-                // Do not force a transport read when a line may already exist in the provided slack.
-                if (Array.IndexOf(buf, (byte)10) < 0)
-                {
-                    var cnt = await s.ReadAsync(buf, pos, buf.Length - pos);
-
-                    if (cnt < 1)
-                    {
-                        throw new Exception("Error when reading line out of stream.");
-                    }
-
-                    pos += cnt;
-                }
-
-                ndx = Array.IndexOf(buf, (byte)10);
-            } while (ndx < 0);
-
-            var line = Encoding.UTF8.GetString(buf, 0, ndx);
-            Array.Copy(buf, ndx + 1, buf, 0, pos - (ndx + 1));
-
-            return (buf, pos - (ndx + 1), line);
         }
 
         public async Task<(Stream, Task)> ReadBody(HTTPDecoderBodyType body_type)
@@ -191,106 +196,28 @@ namespace MDACS.Server
 #pragma warning disable 4014
                     spawned_task = Task.Run(async () =>
                     {
-                        byte[] _slack = null;
-                        int _slack_size = 0;
-
                         do
                         {
-                            Console.WriteLine("$$Trying to read another line.");
-                            var (slack, slack_size, line) = await ReadLineOutOfStream(256, _slack, _slack_size);
-
-                            _slack = slack;
-                            _slack_size = slack_size;
-
-                            line = line.TrimEnd();
+                            var line_bytes = await s_helper.ReadLine();
+                            var line = Encoding.UTF8.GetString(line_bytes).TrimEnd();
 
                             Console.WriteLine("HTTPDecoder.ChunkedDecoder: line={0}", line);
 
                             if (line.Length == 0)
                             {
-                                // A blank line happens after a chunk. It simplified the logic below by re-using
-                                // the logic above.
                                 continue;
                             }
 
-                            long chunk_size = Convert.ToUInt32(line, 16);
+                            int chunk_size = Convert.ToInt32(line, 16);
 
                             if (chunk_size == 0)
                             {
+                                await s_helper.ReadLine();
                                 break;
                             }
 
-                            // Read chunk.
-                            if (chunk_size <= _slack_size)
-                            {
-                                // Special case where chunk is actually less than the slack size.
-                                var tmpbuf = new byte[chunk_size];
-
-                                Array.Copy(_slack, 0, tmpbuf, 0, chunk_size);
-
-                                await os.WriteAsync(tmpbuf, 0, (int)chunk_size);
-
-                                if (chunk_size < _slack_size)
-                                {
-                                    // Less than. At least one byte left in slack.
-                                    Array.Copy(_slack, chunk_size, _slack, 0, _slack_size - chunk_size);
-                                    _slack_size -= (int)chunk_size;
-                                }
-                                else
-                                {
-                                    // Took everything. Exact size.
-                                    _slack = null;
-                                    _slack_size = 0;
-                                }
-                            }
-                            else
-                            {
-                                // Normal case where chunk is larger than the slack size.
-                                if (_slack_size > 0)
-                                {
-                                    await os.WriteAsync(_slack, 0, _slack_size);
-                                    chunk_size -= _slack_size;
-                                }
-
-                                var tmp = new byte[1024 * 4];
-
-                                // Now, read the remaining.
-                                do
-                                {
-                                    try
-                                    {
-                                        Console.WriteLine("$$Reading async");
-                                        var cnt = await s.ReadAsync(tmp, 0, (int)Math.Min(chunk_size, tmp.Length));
-                                        Console.WriteLine("$$Done reading async");
-
-                                        if (cnt < 1)
-                                        {
-                                            break;
-                                        }
-
-                                        chunk_size -= cnt;
-
-                                        Console.WriteLine("$$Writing async into os stream.");
-                                        try
-                                        {
-                                            // BUG: Why can WriteAsync not be await'ed without possible deadlock?
-                                             os.Write(tmp, 0, cnt);
-                                        } catch (Exception ex)
-                                        {
-                                            Console.WriteLine(ex.ToString());
-                                            throw ex;
-                                        }
-                                        Console.WriteLine("$$Done writing async into os stream.");
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        Console.WriteLine("{0}", ex);
-                                    }
-                                    Console.WriteLine("$$okay here at point of exiting loop");
-                                } while (chunk_size > 0);
-
-                                Console.WriteLine("$$relooping");
-                            }
+                            var chunk = await s_helper.ReadSpecificSize(chunk_size);
+                            await os.WriteAsync(chunk, 0, chunk.Length);
                         } while (true);
                         os.Dispose();
                     });
@@ -300,24 +227,30 @@ namespace MDACS.Server
 #pragma warning disable 4014
                     spawned_task = Task.Run(async () =>
                     {
-                        var read_need = body_type.size;
+                        Console.WriteLine("reading content-length body");
+
+                        long got = 0;
+                        int amount;
+                        const int chunksize = 4096;
 
                         do
                         {
-                            var buf = new byte[Math.Max(1024 * 4, read_need)];
-                            var cnt = await s.ReadAsync(buf, 0, buf.Length);
-
-                            if (cnt < 1)
+                            if (body_type.size - got > 0x7fffffff)
                             {
-                                break;
+                                amount = chunksize;
+                            }
+                            else
+                            {
+                                amount = Math.Min(chunksize, (int)(body_type.size - got));
                             }
 
-                            read_need -= cnt;
+                            var chunk = await s_helper.ReadSpecificSize(amount);
 
-                            await os.WriteAsync(buf, 0, cnt);
-                            // Get unstuck by having result be false from a timeout inside AddChunk then
-                            // just free wheel the data into the void and continue onward.
-                        } while (read_need > 0);
+                            got += chunk.Length;
+
+                            os.Write(chunk, 0, chunk.Length);
+                        } while (got < body_type.size);
+
                         os.Dispose();
                     });
 #pragma warning restore 4014

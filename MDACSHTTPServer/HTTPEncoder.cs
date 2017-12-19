@@ -55,6 +55,10 @@ namespace MDACS.Server
                 }
             }
 
+            header.Add("Access-Control-Allow-Origin", "*");
+            header.Add("Access-Control-Allow-Methods", "GET, POST");
+            header.Add("Access-Control-Allow-Headers", "content-type");
+
 #if DEBUG_HTTP_ENCODER
             Console.WriteLine("{0}.DoHeaders: Sending headers.", this);
 #endif
@@ -156,6 +160,8 @@ namespace MDACS.Server
                 header.Add("Transfer-Encoding", "chunked");
             }
 
+            header.Add("server", "ok.com");
+
             await DoHeaders();
 
 #if DEBUG_HTTP_ENCODER
@@ -168,7 +174,10 @@ namespace MDACS.Server
 
             await s.WriteAsync(tmp, 0, tmp.Length);
 
-            byte[] chunk_header = Encoding.UTF8.GetBytes(String.Format("{0:X}\r\n", length));
+            var chunk_header_str = String.Format("{0:x}\r\n", length);
+            byte[] chunk_header = Encoding.UTF8.GetBytes(chunk_header_str);
+
+            Console.WriteLine($"chunk_header_str={chunk_header_str}");
 
             await s.WriteAsync(chunk_header, 0, chunk_header.Length);
             await s.WriteAsync(buf, offset, length);
@@ -189,15 +198,23 @@ namespace MDACS.Server
             Console.WriteLine("{0}.BodyWriteNextChunk: Writing chunk.", this);
 #endif
 
-            byte[] chunk_header = Encoding.UTF8.GetBytes(String.Format("{0:x}\r\n", length));
+            var chunk_header_str = String.Format("{0:x}\r\n", length);
+            byte[] chunk_header = Encoding.UTF8.GetBytes(chunk_header_str);
 
-            await s.WriteAsync(chunk_header, 0, chunk_header.Length);
-            await s.WriteAsync(buf, offset, length);
-            byte[] tmp = new byte[2];
-            tmp[0] = (byte)'\r';
-            tmp[1] = (byte)'\n';
-            await s.WriteAsync(tmp, offset, tmp.Length);
+            Console.WriteLine($"chunk_header_str={chunk_header_str}");
 
+            try
+            {
+                await s.WriteAsync(chunk_header, 0, chunk_header.Length);
+                await s.WriteAsync(buf, offset, length);
+                byte[] tmp = new byte[2];
+                tmp[0] = (byte)'\r';
+                tmp[1] = (byte)'\n';
+                await s.WriteAsync(tmp, 0, tmp.Length);
+            } catch (Exception ex)
+            {
+                Console.WriteLine(ex);
+            }
             state = HTTPEncoderState.SendingChunkedBody;
         }
 

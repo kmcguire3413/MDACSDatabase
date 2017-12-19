@@ -25,14 +25,17 @@ namespace MDACS.Database
 
         public static async Task Action(ServerHandler shandler, HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
         {
-            var auth = await Helpers.ReadMessageFromStreamAndAuthenticate(shandler, 1024 * 16, body);
+            var buf = new byte[4096];
+            int ndx = 0;
+            int cnt;
 
-            //if (!auth.success)
-            //{
-            //    throw new AuthenticationException();
-            //}
+            while ((cnt = body.Read(buf, 0, buf.Length - ndx)) > 0) {
+                ndx += cnt;
+            }
 
-            var req = JsonConvert.DeserializeObject<HandleDeviceConfigRequest>(auth.payload);
+            var buf_utf8 = Encoding.UTF8.GetString(buf, 0, ndx);
+
+            var req = JsonConvert.DeserializeObject<HandleDeviceConfigRequest>(buf_utf8);
 
             var path = Path.Combine(shandler.config_path, String.Format("config_{0}", req.deviceid));
 

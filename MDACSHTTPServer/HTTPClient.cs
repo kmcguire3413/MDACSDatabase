@@ -99,7 +99,7 @@ namespace MDACS.Server
 
         private async Task BodyWriteStreamInternal(Stream inpstream)
         {
-            byte[] buf = new byte[1024 * 512];
+            byte[] buf = new byte[1024 * 4];
             bool first_chunk = true;
 
 #if PROXY_HTTP_ENCODER_DEBUG
@@ -327,7 +327,17 @@ namespace MDACS.Server
                 Console.WriteLine("###### Handling the next request. ######");
                 // Need a way for this to block (await) until the body has been completely
                 // read. This logic could be implemented inside the decoder.
-                var line_header = await decoder.ReadHeader();
+                List<String> line_header;
+                try
+                {
+                    line_header = await decoder.ReadHeader();
+                }
+                catch (InvalidOperationException ex)
+                {
+                    // This happens if the remote closes their transmit channel, yet, we must be careful not to
+                    // exit since the remote receive channel may still be open.
+                    break;
+                }
 
                 Console.WriteLine("Header to dictionary.");
 
@@ -384,13 +394,28 @@ namespace MDACS.Server
 
                 Console.WriteLine("Allowing handling of request.");
 
+                // A couple of scenarios are possible here.
+                // (1) The request can complete and exit before the data it writes is actually sent.
+                // (2) The request can complete after the response has been sent.
+                // (3) If we do not await then we can service other requests (pipeline).
+                //
+                // To keep things more deterministic and less performance oriented
+                // you can see that we await the request handler to complete before
+                // moving onward.
                 await HandleRequest(header, body, phe);
 
                 // We must wait until both the HandleRequest returns and
                 // that the task, if any, which is reading the body also
                 // completes.
+                //
+                // This should not usually happen but it is possible and has happened. For some reason,
+                // the handler exits, yet the body is still being read, therefore, we really also need
+                // to sort of dump the data here or take a Task that is returned by HandleRequest so
+                // we know when all possible handlers are dead.
                 if (body_reading_task != null)
                 {
+                    // BUG, TODO: unsufficient... will deadlock if nothing is reading the `body` as the buffer may fill
+                    //       for the body
                     // Do not block while waiting.
                     await body_reading_task;
                 }

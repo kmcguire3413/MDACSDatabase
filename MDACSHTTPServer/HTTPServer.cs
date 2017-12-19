@@ -39,6 +39,8 @@ namespace MDACS.Server
                 var client = listener.AcceptTcpClient();
                 var ssl_sock = new SslStream(client.GetStream(), false);
 
+                Console.WriteLine("Have new client.");
+
 #pragma warning disable 4014
                 Task.Run(async () =>
                 {
