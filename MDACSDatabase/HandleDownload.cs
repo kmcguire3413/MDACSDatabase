@@ -22,7 +22,7 @@ namespace MDACS.Database
             //var auth = await ReadMessageFromStreamAndAuthenticate(1024 * 16, body);
             //if (!auth.success)
             //{
-            //    throw new AuthenticationException();
+            //    throw new UnauthorizedException();
             //}
 
             HandleDownloadRequest req = null;

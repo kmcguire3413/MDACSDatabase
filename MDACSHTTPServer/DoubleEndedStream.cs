@@ -1,4 +1,4 @@
-﻿#define DOUBLE_ENDED_STREAM_DEBUG
+﻿//#define DOUBLE_ENDED_STREAM_DEBUG
 
 using System;
 using System.Collections.Generic;
@@ -18,13 +18,16 @@ namespace MDACS.Server
             public int actual;
         }
 
+        SemaphoreSlim rd;
         SemaphoreSlim wh;
         Queue<Chunk> chunks;
+        long used;
 
         public DoubleEndedStream()
         {
             chunks = new Queue<Chunk>();
             wh = new SemaphoreSlim(0);
+            rd = new SemaphoreSlim(0, 1);
         }
 
         public override bool CanRead => true;
@@ -52,6 +55,8 @@ namespace MDACS.Server
             throw new NotImplementedException();
         }
 
+        public long GetUsed() => used;
+
         protected override void Dispose(bool disposing)
         {
             if (!disposing)
@@ -65,7 +70,7 @@ namespace MDACS.Server
 #endif
 
             Chunk chunk = new Chunk();
-
+                
             chunk.data = null;
             chunk.actual = 0;
             chunk.offset = 0;
@@ -78,6 +83,11 @@ namespace MDACS.Server
             wh.Release();
 
             base.Dispose(disposing);
+        }
+
+        public async Task WaitForRead()
+        {
+            await rd.WaitAsync();
         }
 
         public override int Read(byte[] buffer, int offset, int count)
@@ -104,12 +114,14 @@ namespace MDACS.Server
 
                 var chunk = chunks.Peek();
 
+                rd.Release();
+
                 if (chunk.data == null)
                 {
 #if DOUBLE_ENDED_STREAM_DEBUG
                     Console.WriteLine("{0}.Read: Stream closed on read.", this);
 #endif
-                    return -1;
+                    return 0;
                 }
 
                 if (count < chunk.actual)
@@ -126,6 +138,8 @@ namespace MDACS.Server
                     // Add another thread entry since this items was never actually removed.
                     wh.Release();
 
+                    used -= count;
+
                     return count;
                 }
                 else
@@ -138,6 +152,8 @@ namespace MDACS.Server
                     Array.Copy(chunk.data, chunk.offset, buffer, offset, count);
                     chunks.Dequeue();
 
+                    used -= count;
+
                     return count;
                 }
             }
@@ -146,8 +162,6 @@ namespace MDACS.Server
         public override void Write(byte[] buffer, int offset, int count)
         {
             Chunk chunk = new Chunk();
-
-            Console.WriteLine("$$$$$$$$$$");
 
             chunk.data = new byte[count];
 
@@ -158,6 +172,7 @@ namespace MDACS.Server
 
             lock (chunks)
             {
+                used += count;
                 chunks.Enqueue(chunk);
             }
 

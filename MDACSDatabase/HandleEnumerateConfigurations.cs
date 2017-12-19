@@ -36,7 +36,9 @@ namespace MDACS.Database
                 {
                     var fnode = Path.Combine(shandler.data_path, node);
 
-                    if (fnode.StartsWith("config_"))
+                    var fnode_filename = Path.GetFileName(fnode);
+
+                    if (fnode_filename.StartsWith("config_"))
                     {
                         var fd = File.OpenRead(fnode);
 
@@ -51,7 +53,11 @@ namespace MDACS.Database
 
                         var buf_text = Encoding.UTF8.GetString(buf);
 
-                        resp.configs[fnode.Substring(fnode.IndexOf("_") + 1)] = buf_text;
+                        var id = fnode_filename.Substring(fnode_filename.IndexOf("_") + 1);
+
+                        id = id.Substring(0, id.LastIndexOf("."));
+
+                        resp.configs[id] = buf_text;
 
                         fd.Dispose();
                     }

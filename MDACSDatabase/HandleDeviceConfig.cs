@@ -1,5 +1,6 @@
 ﻿using MDACS.Server;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -14,7 +15,7 @@ namespace MDACS.Database
         class HandleDeviceConfigRequest
         {
             public String deviceid;
-            public String config_data;
+            public String current_config_data;
         }
 
         struct HandleDeviceConfigResponse
@@ -37,44 +38,54 @@ namespace MDACS.Database
 
             var req = JsonConvert.DeserializeObject<HandleDeviceConfigRequest>(buf_utf8);
 
-            var path = Path.Combine(shandler.config_path, String.Format("config_{0}", req.deviceid));
+            var path = Path.Combine(shandler.config_path, String.Format("config_{0}.data", req.deviceid));
 
             if (!File.Exists(path))
             {
-                var fp = File.OpenWrite(
+                var _fp = File.OpenWrite(
                     path
                 );
 
-                var config_bytes_utf8 = Encoding.UTF8.GetBytes(req.config_data);
-                await fp.WriteAsync(config_bytes_utf8, 0, config_bytes_utf8.Length);
-                fp.Dispose();
+                var _tmp = new JObject();
 
-                HandleDeviceConfigResponse resp;
+                _tmp["config_data"] = req.current_config_data;
 
-                resp.success = true;
-                resp.config_data = req.config_data;
-
-                await encoder.WriteQuickHeader(200, "OK");
-                await encoder.BodyWriteSingleChunk(JsonConvert.SerializeObject(resp));
+                var _config_bytes_utf8 = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(_tmp));
+                await _fp.WriteAsync(_config_bytes_utf8, 0, _config_bytes_utf8.Length);
+                _fp.Dispose();
             }
-            else
-            {
-                var fp = File.OpenRead(
-                    path
-                );
+            var fp = File.OpenRead(
+                path
+            );
 
-                var config_bytes_utf8 = new byte[fp.Length];
-                await fp.ReadAsync(config_bytes_utf8, 0, config_bytes_utf8.Length);
-                fp.Dispose();
+            fp.Seek(0, SeekOrigin.End);
 
-                HandleDeviceConfigResponse resp;
+            var config_bytes_utf8 = new byte[fp.Position];
 
-                resp.success = true;
-                resp.config_data = Encoding.UTF8.GetString(config_bytes_utf8);
+            fp.Seek(0, SeekOrigin.Begin);
 
-                await encoder.WriteQuickHeader(200, "OK");
-                await encoder.BodyWriteSingleChunk(JsonConvert.SerializeObject(resp));
-            }
+            await fp.ReadAsync(config_bytes_utf8, 0, config_bytes_utf8.Length);
+            fp.Dispose();
+
+            HandleDeviceConfigResponse resp;
+
+            resp.success = true;
+                
+            var config_data = Encoding.UTF8.GetString(config_bytes_utf8);
+
+            JObject tmp = JsonConvert.DeserializeObject<JObject>(config_data);
+
+            tmp["config_data"] = JsonConvert.SerializeObject(
+                JsonConvert.DeserializeObject<JObject>(tmp["config_data"].Value<String>()),
+                Formatting.Indented
+            );
+
+            tmp["config_data"] = tmp["config_data"].Value<String>().Replace("\n", "\r\n");
+
+            resp.config_data = JsonConvert.SerializeObject(tmp);
+
+            await encoder.WriteQuickHeader(200, "OK");
+            await encoder.BodyWriteSingleChunk(JsonConvert.SerializeObject(resp));
         }
     }
 }

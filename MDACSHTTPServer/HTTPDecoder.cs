@@ -187,6 +187,8 @@ namespace MDACS.Server
             var os = new DoubleEndedStream();
             Task spawned_task;
 
+            const long max_buffer = 1024 * 1024 * 32;
+
             switch (body_type.type)
             {
                 case HTTPDecoderBodyType.MyType.NoBody:
@@ -216,6 +218,12 @@ namespace MDACS.Server
                                 break;
                             }
 
+                            // Wait without polling for the buffer to decrease from reading from it.
+                            while (os.GetUsed() + chunk_size > max_buffer)
+                            {
+                                os.WaitForRead();
+                            }
+
                             var chunk = await s_helper.ReadSpecificSize(chunk_size);
                             await os.WriteAsync(chunk, 0, chunk.Length);
                         } while (true);
@@ -242,6 +250,12 @@ namespace MDACS.Server
                             else
                             {
                                 amount = Math.Min(chunksize, (int)(body_type.size - got));
+                            }
+
+                            // Wait without polling for the buffer to decrease from reading from it.
+                            while (os.GetUsed() + amount > max_buffer)
+                            {
+                                os.WaitForRead();
                             }
 
                             var chunk = await s_helper.ReadSpecificSize(amount);

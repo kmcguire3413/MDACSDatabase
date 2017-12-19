@@ -1,6 +1,7 @@
 ﻿using MDACS.Database;
 using MDACS.Server;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -24,11 +25,11 @@ namespace MDACS.Database
                 fpc.Dispose();
                 await Task.Yield();
             } while (
-                fsize != size &&
-                (DateTime.Now - st).TotalMinutes < 5
+                fsize < size &&
+                (DateTime.Now - st).TotalMinutes < minutes
             );
 
-            if (fsize != size)
+            if (fsize < size)
             {
                 return false;
             }
@@ -61,7 +62,16 @@ namespace MDACS.Database
             } while (cnt > 0 && tndx < 0);
 
             var hdrstr = Encoding.UTF8.GetString(buf, 0, tndx).Trim();
-            var hdr = JsonConvert.DeserializeObject<MDACS.API.Database.UploadHeader>(hdrstr);
+
+            JObject auth_package = JsonConvert.DeserializeObject<JObject>(hdrstr);
+
+            var payload = auth_package["payload"].Value<String>();
+
+            var hdr = JsonConvert.DeserializeObject<MDACS.API.Database.UploadHeader>(payload);
+
+            // 10
+            // 20
+            // 20 - (10 + 1) = 9
 
             Array.Copy(buf, tndx + 1, buf, 0, bufndx - (tndx + 1));
             // Quasi-repurpose the variable `bufndx` to mark end of the slack data.
@@ -87,7 +97,7 @@ namespace MDACS.Database
             {
                 var fp = File.OpenWrite(temp_data_node_path);
                 await fp.WriteAsync(buf, 0, bufndx);
-                await body.CopyToAsync(fp);
+                await body.CopyToAsync(fp)
                 await fp.FlushAsync();
                 fp.Dispose();
             }
@@ -96,7 +106,7 @@ namespace MDACS.Database
                 throw new ProgramException("Problem during write to file from body stream.", ex);
             }
 
-            if (await WaitForFileSizeMatch(temp_data_node_path, hdr.datasize, 3))
+            if (!await WaitForFileSizeMatch(temp_data_node_path, hdr.datasize, 3))
             {
                 throw new ProgramException("The upload byte length of the destination never reached the intended stream size.");
             }
@@ -110,7 +120,7 @@ namespace MDACS.Database
                 throw new ProgramException("Problem when executing move from temp file to actual destination.", ex);
             }
 
-            if (await WaitForFileSizeMatch(data_node_path, hdr.datasize, 3))
+            if (!await WaitForFileSizeMatch(data_node_path, hdr.datasize, 3))
             {
                 throw new ProgramException("The upload byte length of the destination never reached the intended stream size, after moving from the temp file.");
             }
@@ -135,7 +145,7 @@ namespace MDACS.Database
             await shandler.WriteItemToJournal(item);
 
             await encoder.WriteQuickHeader(200, "OK");
-            await encoder.BodyWriteSingleChunk("{ \"success\": True }");
+            await encoder.BodyWriteSingleChunk("{ \"success\": true }");
         }
     }
 }
