@@ -203,18 +203,13 @@ namespace MDACS.Server
 
             Console.WriteLine($"chunk_header_str={chunk_header_str}");
 
-            try
-            {
-                await s.WriteAsync(chunk_header, 0, chunk_header.Length);
-                await s.WriteAsync(buf, offset, length);
-                byte[] tmp = new byte[2];
-                tmp[0] = (byte)'\r';
-                tmp[1] = (byte)'\n';
-                await s.WriteAsync(tmp, 0, tmp.Length);
-            } catch (Exception ex)
-            {
-                Console.WriteLine(ex);
-            }
+            await s.WriteAsync(chunk_header, 0, chunk_header.Length);
+            await s.WriteAsync(buf, offset, length);
+            byte[] tmp = new byte[2];
+            tmp[0] = (byte)'\r';
+            tmp[1] = (byte)'\n';
+            await s.WriteAsync(tmp, 0, tmp.Length);
+
             state = HTTPEncoderState.SendingChunkedBody;
         }
 
