@@ -22,12 +22,17 @@ namespace MDACS.Server
         SemaphoreSlim wh;
         Queue<Chunk> chunks;
         long used;
+        long pos;
+        bool end_reached;
 
         public DoubleEndedStream()
         {
             chunks = new Queue<Chunk>();
             wh = new SemaphoreSlim(0);
             rd = new AutoResetEvent(false);
+            pos = 0;
+            used = 0;
+            end_reached = false;
         }
 
         public override bool CanRead => true;
@@ -36,9 +41,9 @@ namespace MDACS.Server
 
         public override bool CanWrite => true;
 
-        public override long Length => 0;
+        public override long Length => used;
 
-        public override long Position { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+        public override long Position { get => pos; set => throw new NotImplementedException(); }
 
         public override void Flush()
         {
@@ -113,10 +118,15 @@ namespace MDACS.Server
 #if DOUBLE_ENDED_STREAM_DEBUG
             Console.WriteLine("{0}.Read({1}, {2}, {3})", this, buffer, offset, count);
 #endif
+
+            if (end_reached)
+            {
+                return 0;
+            }
             
             wh.Wait();
 
-            Console.WriteLine("wh.Wait() completed; now locking chunks");
+            //Console.WriteLine("wh.Wait() completed; now locking chunks");
 
             lock (chunks)
             {
@@ -124,7 +134,7 @@ namespace MDACS.Server
                 if (chunks.Count < 1)
                 {
 //#if DOUBLE_ENDED_STREAM_DEBUG
-                    Console.WriteLine("{0}.Read: No chunks readable.", this);
+                    //Console.WriteLine("{0}.Read: No chunks readable.", this);
 //#endif
                     return 0;
                 }
@@ -137,15 +147,16 @@ namespace MDACS.Server
                 {
 //#if DOUBLE_ENDED_STREAM_DEBUG
                     Console.WriteLine("{0}.Read: Stream closed on read.", this);
-//#endif
+                    //#endif
+                    end_reached = true;
                     return 0;
                 }
 
                 if (count < chunk.actual)
                 {
-#if DOUBLE_ENDED_STREAM_DEBUG
+//#if DOUBLE_ENDED_STREAM_DEBUG
                     Console.WriteLine("{0}.Read: Read amount less than current chunk. chunk.offset={1} chunk.actual={2}", this, chunk.offset, chunk.actual);
-#endif
+//#endif
                     Array.Copy(chunk.data, chunk.offset, buffer, offset, count);
 
                     // Only take partial amount from the chunk.
@@ -158,6 +169,7 @@ namespace MDACS.Server
                     Console.WriteLine($"chunk={chunk} chunk.offset={chunk.offset} chunk.actual={chunk.actual}");
 
                     used -= count;
+                    pos += count;
 
                     return count;
                 }
@@ -172,6 +184,7 @@ namespace MDACS.Server
                     chunks.Dequeue();
 
                     used -= count;
+                    pos += count;
 
                     return count;
                 }

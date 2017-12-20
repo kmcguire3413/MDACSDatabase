@@ -58,7 +58,7 @@ namespace MDACS.App
 
     internal class Helpers
     {
-        public static async Task<AuthCheckResponse> ReadMessageFromStreamAndAuthenticate(ServerHandler shandler, int max_size, Stream input_stream)
+        public static async Task<API.Responses.AuthCheckResponse> ReadMessageFromStreamAndAuthenticate(ServerHandler shandler, int max_size, Stream input_stream)
         {
             var buf = new byte[1024 * 32];
             int pos = 0;

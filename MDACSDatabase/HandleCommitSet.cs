@@ -1,9 +1,7 @@
 ﻿using MDACS.Server;
 using Newtonsoft.Json;
 using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using static MDACS.Server.HTTPClient2;
@@ -12,17 +10,6 @@ namespace MDACS.Database
 {
     internal static class HandleCommitSet
     {
-        public class HandleCommitSetRequest
-        {
-            public String security_id;
-            public Dictionary<String, String> meta;
-        }
-
-        public class HandleCommitSetResponse
-        {
-            public bool success;
-        }
-
         /// <summary>
         /// 
         /// </summary>
@@ -43,7 +30,7 @@ namespace MDACS.Database
                 throw new UnauthorizedException();
             }
 
-            var sreq = JsonConvert.DeserializeObject<HandleCommitSetRequest>(auth_resp.payload);
+            var sreq = JsonConvert.DeserializeObject<API.Requests.CommitSetRequest>(auth_resp.payload);
 
             Monitor.Enter(shandler.items);
 
@@ -93,9 +80,12 @@ namespace MDACS.Database
                 throw new ProgramException("Caught inner exception when setting item with commit set command.", ex);
             }
 
-            // Success.
+            var resp = new MDACS.API.Responses.CommitSetResponse();
+
+            resp.success = true;
+
             await encoder.WriteQuickHeader(200, "OK");
-            await encoder.BodyWriteSingleChunk("{ \"success\": true }");
+            await encoder.BodyWriteSingleChunk(JsonConvert.SerializeObject(resp));
         }
     }
 }

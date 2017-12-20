@@ -102,25 +102,18 @@ namespace MDACS.Database
 
             var hdrstr = Encoding.UTF8.GetString(buf, 0, tndx).Trim();
 
-            JObject auth_package = JsonConvert.DeserializeObject<JObject>(hdrstr);
+            var auth_package = JsonConvert.DeserializeObject<MDACS.API.Auth.Msg>(hdrstr);
 
-            var payload = auth_package["payload"].Value<String>();
+            var payload = auth_package.payload;
 
-            var msg = new MDACS.API.Auth.Msg();
-
-            msg.auth.challenge = auth_package["auth"].Value<JObject>()["challenge"].Value<String>();
-            msg.auth.chash = auth_package["auth"].Value<JObject>()["chash"].Value<String>();
-            msg.auth.hash = auth_package["auth"].Value<JObject>()["hash"].Value<String>();
-            msg.payload = payload;
-
-            var info = await MDACS.API.Auth.AuthenticateMessageAsync(shandler.auth_url, msg);
+            var info = await MDACS.API.Auth.AuthenticateMessageAsync(shandler.auth_url, auth_package);
 
             if (!info.success)
             {
                 throw new UnauthorizedException();
             }
 
-            var hdr = JsonConvert.DeserializeObject<MDACS.API.Database.UploadHeader>(payload);
+            var hdr = JsonConvert.DeserializeObject<MDACS.API.Requests.UploadHeader>(payload);
 
             // 10
             // 20
@@ -214,14 +207,14 @@ namespace MDACS.Database
 
             await shandler.WriteItemToJournal(item);
 
-            JObject resp = new JObject();
+            var uresponse = new MDACS.API.Responses.UploadResponse();
 
-            resp["success"] = true;
-            resp["security_id"] = item.security_id;
-            resp["fqpath"] = item.fqpath;
+            uresponse.success = true;
+            uresponse.fqpath = item.fqpath;
+            uresponse.security_id = item.security_id;
 
             await encoder.WriteQuickHeader(200, "OK");
-            await encoder.BodyWriteSingleChunk(JsonConvert.SerializeObject(resp));
+            await encoder.BodyWriteSingleChunk(JsonConvert.SerializeObject(uresponse));
         }
     }
 }
