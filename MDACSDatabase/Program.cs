@@ -258,6 +258,14 @@ namespace MDACS.Database
                     continue;
                 }
 
+                var sid = metaitem.security_id;
+
+                if (sid.Length != (512 / 8 * 2))
+                {
+                    // Throw out entries with a bad sid.
+                    continue;
+                }
+
                 if (items.ContainsKey(metaitem.security_id))
                 {
                     // Overwrite existing entries.
@@ -293,7 +301,14 @@ namespace MDACS.Database
                 await mj.WriteAsync(line_bytes, 0, line_bytes.Length);
             }
 
-            items.Add(item.security_id, item);
+            if (items.ContainsKey(item.security_id))
+            {
+                items[item.security_id] = item;
+            }
+            else
+            {
+                items.Add(item.security_id, item);
+            }
 
             return true;
         }
