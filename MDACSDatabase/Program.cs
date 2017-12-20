@@ -317,6 +317,7 @@ namespace MDACS.Database
             handlers.Add("/data", HandleData.Action);
             handlers.Add("/commitset", HandleCommitSet.Action);
             handlers.Add("/commit-configuration", HandleCommitConfiguration.Action);
+            handlers.Add("/delete", HandleDelete.Action);
 
             // missing /delete
             // missing /commit
