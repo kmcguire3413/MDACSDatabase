@@ -106,6 +106,20 @@ namespace MDACS.Database
 
             var payload = auth_package["payload"].Value<String>();
 
+            var msg = new MDACS.API.Auth.Msg();
+
+            msg.auth.challenge = auth_package["auth"].Value<JObject>()["challenge"].Value<String>();
+            msg.auth.chash = auth_package["auth"].Value<JObject>()["chash"].Value<String>();
+            msg.auth.hash = auth_package["auth"].Value<JObject>()["hash"].Value<String>();
+            msg.payload = payload;
+
+            var info = await MDACS.API.Auth.AuthenticateMessageAsync(shandler.auth_url, msg);
+
+            if (!info.success)
+            {
+                throw new UnauthorizedException();
+            }
+
             var hdr = JsonConvert.DeserializeObject<MDACS.API.Database.UploadHeader>(payload);
 
             // 10
@@ -196,11 +210,18 @@ namespace MDACS.Database
             item.userstr = hdr.userstr;
             item.versions = null;
             item.state = "";
+            item.uploaded_by_user = info.user.user;
 
             await shandler.WriteItemToJournal(item);
 
+            JObject resp = new JObject();
+
+            resp["success"] = true;
+            resp["security_id"] = item.security_id;
+            resp["fqpath"] = item.fqpath;
+
             await encoder.WriteQuickHeader(200, "OK");
-            await encoder.BodyWriteSingleChunk("{ \"success\": true }");
+            await encoder.BodyWriteSingleChunk(JsonConvert.SerializeObject(resp));
         }
     }
 }
