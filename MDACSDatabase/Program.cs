@@ -285,6 +285,8 @@ namespace MDACS.Database
                 await mj.WriteAsync(line_bytes, 0, line_bytes.Length);
             }
 
+            items.Add(item.security_id, item);
+
             return true;
         }
 

@@ -18,7 +18,7 @@ namespace MDACS.Server
             public int actual;
         }
 
-        SemaphoreSlim rd;
+        AutoResetEvent rd;
         SemaphoreSlim wh;
         Queue<Chunk> chunks;
         long used;
@@ -27,7 +27,7 @@ namespace MDACS.Server
         {
             chunks = new Queue<Chunk>();
             wh = new SemaphoreSlim(0);
-            rd = new SemaphoreSlim(0, 1);
+            rd = new AutoResetEvent(false);
         }
 
         public override bool CanRead => true;
@@ -85,9 +85,26 @@ namespace MDACS.Server
             base.Dispose(disposing);
         }
 
-        public async Task WaitForRead()
+        /// <summary>
+        /// Asynchronously waits for a successful read to happen on this object then returns control.
+        /// </summary>
+        /// <returns></returns>
+        public async Task WaitForReadAsync()
         {
-            await rd.WaitAsync();
+            // Hopefully, this does not always spawn another thread, but I believe it will have too and I wish
+            // a more efficient and true asynchronous way could be divised.
+            await Task.Run(() =>
+            {
+                WaitForRead();
+            });
+        }
+
+        /// <summary>
+        /// Waits for a successful read to happen on this object then returns control.
+        /// </summary>
+        public void WaitForRead()
+        {
+            rd.WaitOne();
         }
 
         public override int Read(byte[] buffer, int offset, int count)
@@ -106,21 +123,21 @@ namespace MDACS.Server
 
                 if (chunks.Count < 1)
                 {
-#if DOUBLE_ENDED_STREAM_DEBUG
+//#if DOUBLE_ENDED_STREAM_DEBUG
                     Console.WriteLine("{0}.Read: No chunks readable.", this);
-#endif
+//#endif
                     return 0;
                 }
 
                 var chunk = chunks.Peek();
 
-                rd.Release();
+                rd.Set();
 
                 if (chunk.data == null)
                 {
-#if DOUBLE_ENDED_STREAM_DEBUG
+//#if DOUBLE_ENDED_STREAM_DEBUG
                     Console.WriteLine("{0}.Read: Stream closed on read.", this);
-#endif
+//#endif
                     return 0;
                 }
 
@@ -137,6 +154,8 @@ namespace MDACS.Server
 
                     // Add another thread entry since this items was never actually removed.
                     wh.Release();
+
+                    Console.WriteLine($"chunk={chunk} chunk.offset={chunk.offset} chunk.actual={chunk.actual}");
 
                     used -= count;
 

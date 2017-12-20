@@ -221,7 +221,7 @@ namespace MDACS.Server
                             // Wait without polling for the buffer to decrease from reading from it.
                             while (os.GetUsed() + chunk_size > max_buffer)
                             {
-                                os.WaitForRead();
+                                await os.WaitForReadAsync();
                             }
 
                             var chunk = await s_helper.ReadSpecificSize(chunk_size);
@@ -255,7 +255,7 @@ namespace MDACS.Server
                             // Wait without polling for the buffer to decrease from reading from it.
                             while (os.GetUsed() + amount > max_buffer)
                             {
-                                os.WaitForRead();
+                                await os.WaitForReadAsync();
                             }
 
                             var chunk = await s_helper.ReadSpecificSize(amount);

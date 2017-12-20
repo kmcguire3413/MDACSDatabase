@@ -267,7 +267,10 @@ namespace MDACS.Server
             var q = new Queue<ProxyHTTPEncoder>();
 
             var qchanged = new SemaphoreSlim(0);
-            var runner_exit = false;
+
+            // TODO,BUG: Do these need some kind of volatile marking? How to mark them as such?
+            bool runner_exit = false;
+            bool runner_abort = false;
 
             // This task watches the `q` queue and starts and removes
             // proxy objects representing the HTTP encoder. Each request
@@ -286,9 +289,15 @@ namespace MDACS.Server
                     // Only lock long enough to get the first item.
                     lock (q)
                     {
+                        if (runner_abort)
+                        {
+                            Console.WriteLine("runner has aborted");
+                            return;
+                        }
+
                         if (runner_exit && q.Count == 0)
                         {
-                            Console.WriteLine("runner has exited; closing the connection");
+                            Console.WriteLine("runner has exited");
                             return;
                         }
 
@@ -402,7 +411,30 @@ namespace MDACS.Server
                 // To keep things more deterministic and less performance oriented
                 // you can see that we await the request handler to complete before
                 // moving onward.
-                await HandleRequest(header, body, phe);
+                var handle_req_task = HandleRequest(header, body, phe);
+
+                await handle_req_task;
+
+                // Clever way to handle exceptions since otherwise things continue onward like
+                // everything is normal. This can leave the runner stuck waiting at the `phe.done`
+                // signal.
+                if (handle_req_task.Exception != null)
+                {
+                    // We might should think of a way to salvage the connection.. but if the headers have
+                    // been sent and we are in the middle of a content-length response then I am not sure
+                    // how to gracefully let the client know that things have gone wrong without shutting
+                    // the connection down. It is possible to detect if its a chunked-encoding and then use
+                    // a trailer header, maybe? Pretty much like a CGI script?
+                    Console.WriteLine("exception in request handler; shutting down connection");
+                    // Ensure the proxy is marked as done. So the runner will throw it away, and also
+                    // drop the connection because we are not sure how to proceed now.
+                    runner_abort = true;
+                    // The runner is likely waiting on the `done` signal. Set the signal to ensure it
+                    // gets past that point and then sees the `runner_abort`.
+                    phe.done.Set();
+                    // Come out of this loop and wait on runner to complete.
+                    break;
+                }
 
                 // We must wait until both the HandleRequest returns and
                 // that the task, if any, which is reading the body also

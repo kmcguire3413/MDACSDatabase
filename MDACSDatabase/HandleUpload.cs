@@ -5,6 +5,7 @@ using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using static MDACS.Server.HTTPClient2;
@@ -13,23 +14,23 @@ namespace MDACS.Database
 {
     static class HandleUpload
     {
-        private static async Task<bool> WaitForFileSizeMatch(String path, ulong size, int minutes)
+        private static async Task<bool> CheckedFileMoveAsync(String from, String to)
         {
-            var st = DateTime.Now;
-            ulong fsize;
-
-            do
+            try
             {
-                var fpc = File.OpenRead(path);
-                fsize = (ulong)fpc.Length;
-                fpc.Dispose();
-                await Task.Yield();
-            } while (
-                fsize < size &&
-                (DateTime.Now - st).TotalMinutes < minutes
-            );
+                long size;
 
-            if (fsize < size)
+                using (var fp = File.OpenRead(from))
+                {
+                    size = fp.Length;
+                }
+
+                // If this is synchronous and blocks, then maybe this will throw it into its own thread.
+                await Task.Run(() => File.Move(from, to));
+
+                // Once the above completed then watch the file until the size matches the expected.
+                await WaitForFileSizeMatch(to, size, 5);
+            } catch (Exception _)
             {
                 return false;
             }
@@ -37,6 +38,44 @@ namespace MDACS.Database
             return true;
         }
 
+        private static async Task<bool> WaitForFileSizeMatch(String path, long size, int minutes)
+        {
+            var st = DateTime.Now;
+            long fsize;
+
+            do
+            {
+                var fpc = File.OpenRead(path);
+                fsize = fpc.Length;
+                fpc.Dispose();
+                await Task.Delay(500);
+
+                if (fsize > size)
+                {
+                    return false;
+                }
+            } while (
+                fsize != size &&
+                (DateTime.Now - st).TotalMinutes < minutes
+            );
+
+            if (fsize != size)
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Handles reading header and data for data upload. A critical routine that employs as many checks as needed
+        /// to ensure that written data is verified as written and correct.
+        /// </summary>
+        /// <param name="shandler"></param>
+        /// <param name="request"></param>
+        /// <param name="body"></param>
+        /// <param name="encoder"></param>
+        /// <returns></returns>
         public static async Task Action(ServerHandler shandler, HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
         {
             var buf = new byte[4096];
@@ -53,7 +92,7 @@ namespace MDACS.Database
                     bufndx += cnt;
                 }
 
-                tndx = Array.IndexOf(buf, (byte)'\r');
+                tndx = Array.IndexOf(buf, (byte)'\n');
 
                 if (bufndx >= buf.Length && tndx < 0)
                 {
@@ -88,9 +127,10 @@ namespace MDACS.Database
 
             var data_node_path = Path.Combine(shandler.data_path, data_node);
 
+            // Make the name unique and keep pertinent information in the event something fails.
             var temp_data_node_path = Path.Combine(
                 shandler.data_path,
-                DateTime.Now.ToFileTime().ToString()
+                $"temp_{DateTime.Now.ToFileTime().ToString()}_{data_node}"
             );
 
             try
@@ -103,40 +143,55 @@ namespace MDACS.Database
             }
             catch (Exception ex)
             {
+                File.Delete(temp_data_node_path);
                 throw new ProgramException("Problem during write to file from body stream.", ex);
-            }
+            } 
 
-            if (!await WaitForFileSizeMatch(temp_data_node_path, hdr.datasize, 3))
+            if (!await WaitForFileSizeMatch(temp_data_node_path, (long)hdr.datasize, 3))
             {
+                File.Delete(temp_data_node_path);
                 throw new ProgramException("The upload byte length of the destination never reached the intended stream size.");
-            }
+            } 
 
             try
             {
-                File.Move(temp_data_node_path, data_node_path);
+                if (File.Exists(data_node_path))
+                {
+                    await CheckedFileMoveAsync(data_node_path, $"{data_node_path}.moved.{DateTime.Now.ToFileTime().ToString()}");
+                }
+                
+                await CheckedFileMoveAsync(temp_data_node_path, data_node_path);
             }
             catch (Exception ex)
             {
+                // Delete the temporary since we should have saved the original.
+                File.Delete(temp_data_node_path);
+                // Move the original back to the original filename.
+                await CheckedFileMoveAsync($"{data_node_path}.moved.{DateTime.Now.ToFileTime().ToString()}", data_node_path);
                 throw new ProgramException("Problem when executing move from temp file to actual destination.", ex);
             }
 
-            if (!await WaitForFileSizeMatch(data_node_path, hdr.datasize, 3))
+            if (!await WaitForFileSizeMatch(data_node_path, (long)hdr.datasize, 3))
             {
                 throw new ProgramException("The upload byte length of the destination never reached the intended stream size, after moving from the temp file.");
             }
 
             Item item = new Item();
 
+            var hasher = new SHA512Managed();
+
+            var security_id_bytes = hasher.ComputeHash(Encoding.UTF8.GetBytes(data_node));
+
             item.datasize = hdr.datasize;
             item.datatype = hdr.datatype;
             item.datestr = hdr.datestr;
             item.devicestr = hdr.devicestr;
-            item.duration = -2.48;
+            item.duration = -1.0;
             item.fqpath = data_node_path;
             item.metatime = DateTime.Now.ToFileTimeUtc();
             item.node = data_node;
             item.note = "";
-            item.security_id = "";
+            item.security_id = BitConverter.ToString(security_id_bytes).Replace("-", "").ToLower();
             item.timestr = hdr.timestr;
             item.userstr = hdr.userstr;
             item.versions = null;
