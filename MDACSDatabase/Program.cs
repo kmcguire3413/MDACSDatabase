@@ -36,6 +36,7 @@ namespace MDACS.Database
         public ulong datasize;
         public String note;
         public String state;
+        public String uploaded_by_user;
         public String[][] versions;
 
         public static String Serialize(Item item)
