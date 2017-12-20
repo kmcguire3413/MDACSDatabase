@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -9,6 +10,116 @@ using System.Threading.Tasks;
 
 namespace MDACS.API
 {
+    namespace Requests
+    {
+        public class UploadHeader
+        {
+            public String datestr;
+            public String timestr;
+            public String devicestr;
+            public String userstr;
+            public String datatype;
+            public ulong datasize;
+        }
+
+        public class CommitSetRequest
+        {
+            public String security_id;
+            public JObject meta;
+        }
+    }
+
+    namespace Responses
+    {
+        public class CommitSetResponse
+        {
+            public bool success;
+        }
+
+        public struct UploadResponse
+        {
+            public bool success;
+            public String security_id;
+            public String fqpath;
+        }
+
+        public struct DataResponse
+        {
+            public Database.Alert[] alerts;
+            public Database.DataItem[] data;
+        }
+
+        struct AuthResponse
+        {
+            public string challenge;
+        }
+
+        public class AuthCheckResponse
+        {
+            public bool success;
+            public String payload;
+            public Auth.User user;
+        }
+    }
+
+    public class Session
+    {
+        public String auth_url { get; }
+        public String db_url { get;  }
+        public String username { get; }
+        public String password { get; }
+
+        public Session(
+            String auth_url,
+            String db_url,
+            String username,
+            String password
+            )
+        {
+            this.auth_url = auth_url;
+            this.db_url = db_url;
+            this.username = username;
+            this.password = password;
+        }
+
+        public async Task<Responses.CommitSetResponse> CommitSetAsync(String sid, JObject meta)
+        {
+            return await Database.CommitSetAsync(
+                auth_url,
+                db_url,
+                username,
+                password,
+                sid,
+                meta
+            );
+        }
+
+        public async Task<Responses.UploadResponse> UploadAsync(
+            long datasize,
+            String datatype,
+            String datestr,
+            String devicestr,
+            String timestr,
+            String userstr,
+            Stream data
+        )
+        {
+            return await Database.UploadAsync(
+                auth_url,
+                db_url,
+                username,
+                password,
+                datasize,
+                datatype,
+                datestr,
+                devicestr,
+                timestr,
+                userstr,
+                data
+            );
+        }
+    }
+
     public class Database
     {
         private static async Task<Stream> ReadStreamTransactionAsync(
@@ -23,7 +134,7 @@ namespace MDACS.API
 
             // Leave synchronous for this moment.
             var payload_bytes = Encoding.ASCII.GetBytes(
-                Auth.BuildAuthWithPayload(auth_url, username, password, payload)
+                await Auth.BuildAuthWithPayloadAsync(auth_url, username, password, payload)
             );
 
             req = WebRequest.Create(db_url);
@@ -54,8 +165,12 @@ namespace MDACS.API
             WebResponse resp;
             Stream data;
 
+            var tsk = Auth.BuildAuthWithPayloadAsync(auth_url, username, password, payload);
+
+            tsk.Wait();
+
             var payload_bytes = Encoding.ASCII.GetBytes(
-                Auth.BuildAuthWithPayload(auth_url, username, password, payload)
+                tsk.Result
             );
 
             req = WebRequest.Create(db_url);
@@ -87,8 +202,12 @@ namespace MDACS.API
             Stream data;
             StreamReader reader;
 
+            var tsk = Auth.BuildAuthWithPayloadAsync(auth_url, username, password, payload);
+
+            tsk.Wait();
+
             var payload_bytes = Encoding.ASCII.GetBytes(
-                Auth.BuildAuthWithPayload(auth_url, username, password, payload)
+                tsk.Result
             );
 
             req = WebRequest.Create(db_url);
@@ -109,16 +228,6 @@ namespace MDACS.API
             return reader.ReadToEnd();
         }
 
-        public struct UploadHeader
-        {
-            public String datestr;
-            public String timestr;
-            public String devicestr;
-            public String userstr;
-            public String datatype;
-            public ulong datasize;
-        }
-
         public struct Alert
         {
 
@@ -137,12 +246,6 @@ namespace MDACS.API
             public ulong datasize;
             public float duration;
             public string state;
-        }
-
-        public struct DataResponse
-        {
-            public Alert[] alerts;
-            public DataItem[] data;
         }
 
         public static async Task<Stream> DownloadDataAsync(string security_id, string auth_url, string db_url, string username, string password)
@@ -167,9 +270,100 @@ namespace MDACS.API
             );
         }
 
+        public static async Task<Responses.CommitSetResponse> CommitSetAsync(
+            String auth_url, 
+            String db_url, 
+            String username, 
+            String password, 
+            String sid, 
+            JObject meta)
+        {
+            var csreq = new Requests.CommitSetRequest();
+
+            csreq.security_id = sid;
+            csreq.meta = meta;
+
+            var stream = await ReadStreamTransactionAsync(
+                auth_url,
+                $"{db_url}/commitset",
+                username,
+                password,
+                JsonConvert.SerializeObject(csreq)
+            );
+
+            var bs = new StreamReader(stream, Encoding.UTF8, false);
+
+            return JsonConvert.DeserializeObject<Responses.CommitSetResponse>(await bs.ReadToEndAsync());
+        }
+
+        public static async Task<Responses.UploadResponse> UploadAsync(
+            String auth_url,
+            String db_url,
+            String username,
+            String password,
+            long datasize,
+            String datatype,
+            String datestr,
+            String devicestr,
+            String timestr,
+            String userstr,
+            Stream data
+        )
+        {
+            if (data.Length - data.Position != (long)datasize)
+            {
+                throw new ArgumentException("The data stream must be exactly the specified length from its current position as `datasize`.");
+            }
+
+            var header = new Requests.UploadHeader();
+
+            header.datasize = (ulong)datasize;
+            header.datatype = datatype;
+            header.datestr = datestr;
+            header.devicestr = devicestr;
+            header.timestr = timestr;
+            header.userstr = userstr;
+
+            var packet = API.Auth.BuildAuthWithPayloadAsync(
+                auth_url, 
+                username, 
+                password, 
+                JsonConvert.SerializeObject(header)
+            );
+            var packet_bytes = Encoding.UTF8.GetBytes($"{packet}\n");
+
+            var wr = WebRequest.Create($"{db_url}/upload");
+
+            wr.ContentType = "text/json";
+            wr.Method = "POST";
+
+            ((HttpWebRequest)wr).AllowWriteStreamBuffering = false;
+            ((HttpWebRequest)wr).SendChunked = true;
+            // When sending a very long post this might need to be turned off
+            // since it can cause an abrupt canceling of the request.
+            ((HttpWebRequest)wr).KeepAlive = false;
+
+            var reqstream = await wr.GetRequestStreamAsync();
+
+            await reqstream.WriteAsync(packet_bytes, 0, packet_bytes.Length);
+
+            var chunk = new byte[1024];
+
+            await data.CopyToAsync(reqstream);
+
+            reqstream.Close();
+
+            var resp = await wr.GetResponseAsync();
+            var rstream = resp.GetResponseStream();
+            var resp_length = await rstream.ReadAsync(chunk, 0, chunk.Length);
+            var resp_text = Encoding.UTF8.GetString(chunk, 0, resp_length);
+
+            return JsonConvert.DeserializeObject<Responses.UploadResponse>(resp_text);
+        }
+
         public delegate void GetDataProgress(ulong bytes_read);
 
-        public static async Task<DataResponse> GetDataAsync(string auth_url, string db_url, string username, string password, GetDataProgress progress_event)
+        public static async Task<Responses.DataResponse> GetDataAsync(string auth_url, string db_url, string username, string password, GetDataProgress progress_event)
         {
             string payload = "{}";
 
@@ -201,10 +395,10 @@ namespace MDACS.API
 
             //string resp_json = File.ReadAllText("dump.txt");
 
-            return JsonConvert.DeserializeObject<DataResponse>(resp_json);
+            return JsonConvert.DeserializeObject<Responses.DataResponse>(resp_json);
         }
 
-        public static DataResponse GetData(string auth_url, string db_url, string username, string password, GetDataProgress progress_event)
+        public static Responses.DataResponse GetData(string auth_url, string db_url, string username, string password, GetDataProgress progress_event)
         {
             string payload = "{}";
 
@@ -235,17 +429,12 @@ namespace MDACS.API
 
             //string resp_json = File.ReadAllText("dump.txt");
 
-            return JsonConvert.DeserializeObject<DataResponse>(resp_json);
+            return JsonConvert.DeserializeObject<Responses.DataResponse>(resp_json);
         }
     }
 
     public class Auth
     {
-        struct AuthResponse
-        {
-            public string challenge;
-        }
-
         struct AuthCompletePacketInner
         {
             public string challenge;
@@ -319,7 +508,7 @@ namespace MDACS.API
             Stream data;
             StreamReader reader;
             string json;
-            AuthResponse auth_resp;
+            Responses.AuthResponse auth_resp;
 
             req = WebRequest.Create(String.Format("{0}/challenge", auth_url));
 
@@ -338,7 +527,7 @@ namespace MDACS.API
 
             json = reader.ReadToEnd();
 
-            auth_resp = JsonConvert.DeserializeObject<AuthResponse>(json);
+            auth_resp = JsonConvert.DeserializeObject<Responses.AuthResponse>(json);
 
             return auth_resp.challenge;
         }
@@ -366,13 +555,6 @@ namespace MDACS.API
             public bool can_delete;
         }
 
-        public class AuthCheckResponse
-        {
-            public bool success;
-            public String payload;
-            public User user;
-        }
-
         public class AuthCheckPayload
         {
             public String chash;
@@ -386,14 +568,14 @@ namespace MDACS.API
             public String challenge;
         }
 
-        public static async Task<AuthCheckResponse> AuthenticateMessageAsync(String auth_url, String msg)
+        public static async Task<Responses.AuthCheckResponse> AuthenticateMessageAsync(String auth_url, String msg)
         {
             var msg_decoded = JsonConvert.DeserializeObject<Msg>(msg);
 
             if (msg_decoded == null)
             {
                 Console.WriteLine("msg_decoded was null");
-                var tmp = new AuthCheckResponse();
+                var tmp = new Responses.AuthCheckResponse();
                 tmp.success = false;
                 return tmp;
             }
@@ -406,7 +588,7 @@ namespace MDACS.API
             );
         }
 
-        public static async Task<AuthCheckResponse> AuthenticateMessageAsync(String auth_url, Msg msg)
+        public static async Task<Responses.AuthCheckResponse> AuthenticateMessageAsync(String auth_url, Msg msg)
         {
             if (msg.payload == null) {
                 Console.WriteLine("authenticating message with no payload");
@@ -422,7 +604,7 @@ namespace MDACS.API
 
                 Console.WriteLine("got verify result");
 
-                return JsonConvert.DeserializeObject<AuthCheckResponse>(resp_string);
+                return JsonConvert.DeserializeObject<Responses.AuthCheckResponse>(resp_string);
             }
 
             Console.WriteLine("authenticating message with payload");
@@ -448,34 +630,22 @@ namespace MDACS.API
 
             Console.WriteLine("returning results");
 
-            var resp = JsonConvert.DeserializeObject<AuthCheckResponse>(resp_string2);
+            var resp = JsonConvert.DeserializeObject<Responses.AuthCheckResponse>(resp_string2);
 
             resp.payload = msg.payload;
 
             return resp;
         }
 
-        public static string BuildAuthWithPayload(string auth_url, string username, string password, string payload)
+        public static async Task<String> BuildAuthWithPayloadAsync(string auth_url, string username, string password, string payload)
         {
-            string challenge;
-            SHA512 hasher;
-            byte[] payload_hash;
-            byte[] password_hash;
-            byte[] complete_hash;
-            AuthCompletePacket packet;
+            var challenge = await GetAuthChallengeAsync(auth_url);
+            var hasher = new SHA512Managed();
 
-            var tsk = GetAuthChallengeAsync(auth_url);
+            var payload_hash = hasher.ComputeHash(Encoding.ASCII.GetBytes(payload));
+            var password_hash = hasher.ComputeHash(Encoding.ASCII.GetBytes(password));
 
-            tsk.Wait();
-
-            challenge = tsk.Result;
-
-            hasher = new SHA512Managed();
-
-            payload_hash = hasher.ComputeHash(Encoding.ASCII.GetBytes(payload));
-            password_hash = hasher.ComputeHash(Encoding.ASCII.GetBytes(password));
-
-            complete_hash = hasher.ComputeHash(
+            var complete_hash = hasher.ComputeHash(
                 Encoding.ASCII.GetBytes(String.Format(
                     "{0}{1}{2}{3}",
                     ByteArrayToHexString(payload_hash),
@@ -485,6 +655,7 @@ namespace MDACS.API
                 ))
             );
 
+            AuthCompletePacket packet;
             packet.auth.challenge = challenge;
             packet.auth.chash = ByteArrayToHexString(complete_hash);
             packet.auth.payload = true;

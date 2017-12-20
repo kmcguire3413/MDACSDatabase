@@ -91,7 +91,7 @@ namespace MDACS.Database
 
     internal class Helpers
     {
-        public static async Task<AuthCheckResponse> ReadMessageFromStreamAndAuthenticate(ServerHandler shandler, int max_size, Stream input_stream)
+        public static async Task<API.Responses.AuthCheckResponse> ReadMessageFromStreamAndAuthenticate(ServerHandler shandler, int max_size, Stream input_stream)
         {
             var buf = new byte[1024 * 32];
             int pos = 0;
@@ -224,6 +224,11 @@ namespace MDACS.Database
 
             items = new Dictionary<string, Item>();
 
+            if (!File.Exists(metajournal_path))
+            {
+                File.Create(metajournal_path).Dispose();
+            }
+
             var mj = File.OpenText(metajournal_path);
 
             var hasher = MD5.Create();
@@ -332,18 +337,20 @@ namespace MDACS.Database
         }
     }
 
-    struct ProgramConfig
+    public struct ProgramConfig
     {
         public String metajournal_path;
         public String data_path;
         public String config_path;
         public String auth_url;
+        public String cert_path;
+        public String cert_pass;
         public ushort port;
     }
 
-    class Program
+    public class Program
     {
-        static void Main(string[] args)
+        public static void Main(string[] args)
         {
             if (args.Length < 1)
             {
@@ -358,6 +365,7 @@ namespace MDACS.Database
                     data_path = "The path to the directory containing the data files backing the journal.",
                     config_path = "The path to the directory holding device configuration files.",
                     auth_url = "The HTTP or HTTPS URL to the authentication service.",
+                    cert_path = "The PFX file that contains both the private and public keys for communications.",
                     port = 34001,
                 };
 
@@ -382,7 +390,7 @@ namespace MDACS.Database
                 auth_url: cfg.auth_url
             );
 
-            var server = new HTTPServer<ServerHandler>(handler, "test.pfx", "hello");
+            var server = new HTTPServer<ServerHandler>(handler, cfg.cert_path, cfg.cert_pass);
             server.Start(cfg.port).Wait();
 
             /*
