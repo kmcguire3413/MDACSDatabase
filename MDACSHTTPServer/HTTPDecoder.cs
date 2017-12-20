@@ -225,7 +225,7 @@ namespace MDACS.Server
                             }
 
                             var chunk = await s_helper.ReadSpecificSize(chunk_size);
-                            await os.WriteAsync(chunk, 0, chunk.Length);
+                            os.Write(chunk, 0, chunk.Length);
                         } while (true);
                         os.Dispose();
                     });

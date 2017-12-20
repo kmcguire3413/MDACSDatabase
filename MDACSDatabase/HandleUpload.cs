@@ -53,12 +53,12 @@ namespace MDACS.Database
                     bufndx += cnt;
                 }
 
-                if (bufndx >= buf.Length)
+                tndx = Array.IndexOf(buf, (byte)'\r');
+
+                if (bufndx >= buf.Length && tndx < 0)
                 {
                     throw new ProgramException("On receiving upload header. The header size exceeded 4096-bytes.");
                 }
-
-                tndx = Array.IndexOf(buf, (byte)'\r');
             } while (cnt > 0 && tndx < 0);
 
             var hdrstr = Encoding.UTF8.GetString(buf, 0, tndx).Trim();
@@ -97,7 +97,7 @@ namespace MDACS.Database
             {
                 var fp = File.OpenWrite(temp_data_node_path);
                 await fp.WriteAsync(buf, 0, bufndx);
-                await body.CopyToAsync(fp)
+                await body.CopyToAsync(fp);
                 await fp.FlushAsync();
                 fp.Dispose();
             }

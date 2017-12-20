@@ -177,14 +177,14 @@ namespace MDACS.App
             var handlers = new Dictionary<String, HTTPClient3Handler>();
 
             handlers.Add("/", Handlers.Index);
-            handlers.Add("/enumerate-configurations", Handlers.EnumerateConfigurations);
+            /*handlers.Add("/enumerate-configurations", Handlers.EnumerateConfigurations);
             handlers.Add("/viewer", Handlers.Viewer);
             handlers.Add("/challenge", Handlers.Challenge);
             handlers.Add("/utility", Handlers.Utility);
             handlers.Add("/commitset", Handlers.CommitSet);
             handlers.Add("/commit_batch_single_ops", Handlers.CommitBatchSingleOps);
             handlers.Add("/data", Handlers.Data);
-            handlers.Add("/download", Handlers.Download);
+            handlers.Add("/download", Handlers.Download);*/
 
             return new HTTPClient3(
                 shandler: shandler,
