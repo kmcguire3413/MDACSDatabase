@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
+using static MDACS.API.Database;
 using static MDACS.Server.HTTPClient2;
 
 namespace MDACS.Database

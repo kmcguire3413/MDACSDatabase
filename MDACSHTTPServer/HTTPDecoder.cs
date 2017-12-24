@@ -210,24 +210,31 @@ namespace MDACS.Server
                                 continue;
                             }
 
+                            Console.WriteLine("AAA");
                             int chunk_size = Convert.ToInt32(line, 16);
+                            Console.WriteLine("BBB");
 
                             if (chunk_size == 0)
                             {
+                                os.Dispose();
                                 await s_helper.ReadLine();
                                 break;
                             }
 
+                            Console.WriteLine("CCC");
+
                             // Wait without polling for the buffer to decrease from reading from it.
                             while (os.GetUsed() + chunk_size > max_buffer)
                             {
+                                Console.WriteLine("AAA");
                                 await os.WaitForReadAsync();
+                                Console.WriteLine("BBB");
                             }
 
                             var chunk = await s_helper.ReadSpecificSize(chunk_size);
                             os.Write(chunk, 0, chunk.Length);
                         } while (true);
-                        os.Dispose();
+                        Console.WriteLine("chunked stream done");
                     });
 #pragma warning restore 4014
                     return (os, spawned_task);

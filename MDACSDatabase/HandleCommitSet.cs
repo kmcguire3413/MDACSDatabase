@@ -4,6 +4,7 @@ using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using static MDACS.API.Database;
 using static MDACS.Server.HTTPClient2;
 
 namespace MDACS.Database
@@ -64,7 +65,8 @@ namespace MDACS.Database
                 foreach (var pair in sreq.meta)
                 {
                     // Reflection simplified coding time at the expense of performance.
-                    item.GetType().GetField(pair.Key).SetValue(item, pair.Value);
+                    var field = item.GetType().GetField(pair.Key);
+                    field.SetValue(item, pair.Value.ToObject(field.FieldType));
                     Logger.LogLine(String.Format("Set property {0} for item to {1}.", pair.Key, pair.Value));
                 }
 

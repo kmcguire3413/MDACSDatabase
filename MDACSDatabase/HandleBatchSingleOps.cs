@@ -58,11 +58,12 @@ namespace MDACS.Database
                     {
                         try
                         {
-                            // Must pull locally, make change, then push into items. Else, we only modify our
-                            // frame local value. This is because Item is a struct/value type and not a reference
-                            // type in order to keep memory more compact.
+                            // TODO: make the type variant so the caller can specifiy things other 
+                            //       than string; will need to interpret the entire structure as a
+                            //       JSON object to do it easily
                             var tmp = shandler.items[sid];
-                            tmp.GetType().GetField(key).SetValue(shandler.items[sid], val);
+                            var field = tmp.GetType().GetField(key);
+                            field.SetValue(shandler.items[sid], val);
                             shandler.items[sid] = tmp;
 
                             tasks.Add(shandler.WriteItemToJournal(tmp));

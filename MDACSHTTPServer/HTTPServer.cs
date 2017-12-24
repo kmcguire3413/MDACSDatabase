@@ -29,7 +29,7 @@ namespace MDACS.Server
 
         public async Task Start(ushort port) {
             TcpListener listener = new TcpListener(IPAddress.Any, port);
-
+            listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, 1);
             listener.Start();
 
             var x509 = new X509Certificate2(pfx_cert_path, cert_private_key_password);

@@ -450,6 +450,14 @@ namespace MDACS.Server
                     //       for the body
                     // Do not block while waiting.
                     await body_reading_task;
+
+                    if (body_reading_task.Exception != null)
+                    {
+                        Console.WriteLine("exception in body reader; shutting down connection");
+                        Console.WriteLine(body_reading_task.Exception);
+                        runner_abort = true;
+                        phe.done.Set();
+                    }
                 }
             }
 

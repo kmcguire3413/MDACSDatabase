@@ -11,6 +11,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MDACSApp", "MDACSApp\MDACSA
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MDACSAPI", "MDACSAPI\MDACSAPI.csproj", "{61DC6C85-DDBF-496C-A001-E66E5356B301}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MDACSTest", "..\MDACSTest\MDACSTest\MDACSTest.csproj", "{CBA1868D-FDFE-4431-BB3C-AEF9E4AEE77F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -33,6 +35,10 @@ Global
 		{61DC6C85-DDBF-496C-A001-E66E5356B301}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{61DC6C85-DDBF-496C-A001-E66E5356B301}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{61DC6C85-DDBF-496C-A001-E66E5356B301}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CBA1868D-FDFE-4431-BB3C-AEF9E4AEE77F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CBA1868D-FDFE-4431-BB3C-AEF9E4AEE77F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CBA1868D-FDFE-4431-BB3C-AEF9E4AEE77F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CBA1868D-FDFE-4431-BB3C-AEF9E4AEE77F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
