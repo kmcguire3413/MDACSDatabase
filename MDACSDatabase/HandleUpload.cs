@@ -8,6 +8,7 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using static MDACS.API.Database;
 using static MDACS.Server.HTTPClient2;
 
 namespace MDACS.Database
@@ -50,6 +51,8 @@ namespace MDACS.Database
                 fpc.Dispose();
                 await Task.Delay(500);
 
+                Console.WriteLine($"fsize={fsize} size={size}");
+
                 if (fsize > size)
                 {
                     return false;
@@ -58,6 +61,8 @@ namespace MDACS.Database
                 fsize != size &&
                 (DateTime.Now - st).TotalMinutes < minutes
             );
+
+            Console.WriteLine($"fsize={fsize} size={size}");
 
             if (fsize != size)
             {
@@ -78,7 +83,7 @@ namespace MDACS.Database
         /// <returns></returns>
         public static async Task Action(ServerHandler shandler, HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
         {
-            var buf = new byte[4096];
+            var buf = new byte[1024 * 32];
             int bufndx = 0;
             int cnt;
             int tndx;
@@ -102,22 +107,30 @@ namespace MDACS.Database
 
             var hdrstr = Encoding.UTF8.GetString(buf, 0, tndx).Trim();
 
+            Console.WriteLine(hdrstr);
+
             var auth_package = JsonConvert.DeserializeObject<MDACS.API.Auth.Msg>(hdrstr);
 
             var payload = auth_package.payload;
 
-            var info = await MDACS.API.Auth.AuthenticateMessageAsync(shandler.auth_url, auth_package);
+            Console.WriteLine($"shandler.auth_url={shandler.auth_url} auth_package={auth_package.payload}");
+
+            /*var info = await MDACS.API.Auth.AuthenticateMessageAsync(shandler.auth_url, auth_package);
 
             if (!info.success)
             {
                 throw new UnauthorizedException();
             }
+            */
 
             var hdr = JsonConvert.DeserializeObject<MDACS.API.Requests.UploadHeader>(payload);
 
-            // 10
-            // 20
-            // 20 - (10 + 1) = 9
+            // tndx=10
+            // tndx+1=11
+            // bufndx=20
+
+            // 20 - 11 = 9
+            // bufndx=9
 
             Array.Copy(buf, tndx + 1, buf, 0, bufndx - (tndx + 1));
             // Quasi-repurpose the variable `bufndx` to mark end of the slack data.
@@ -140,10 +153,28 @@ namespace MDACS.Database
                 $"temp_{DateTime.Now.ToFileTime().ToString()}_{data_node}"
             );
 
+            // TODO: hash data then rehash data after writing to storage, maybe?
+
             try
             {
-                var fp = File.OpenWrite(temp_data_node_path);
+                var fp = File.Open(temp_data_node_path, FileMode.Create);
                 await fp.WriteAsync(buf, 0, bufndx);
+
+                long getting_pissed_off = 0;
+
+                while (true)
+                {
+                    var _cnt = await body.ReadAsync(buf, 0, buf.Length);
+
+                    if (_cnt < 1)
+                    {
+                        break;
+                    }
+
+                    getting_pissed_off += _cnt;
+                    await fp.WriteAsync(buf, 0, _cnt);
+                }
+                Console.WriteLine($"getting_pissed_off={getting_pissed_off}");
                 await body.CopyToAsync(fp);
                 await fp.FlushAsync();
                 fp.Dispose();
@@ -152,13 +183,15 @@ namespace MDACS.Database
             {
                 File.Delete(temp_data_node_path);
                 throw new ProgramException("Problem during write to file from body stream.", ex);
-            } 
+            }
+
+            Console.WriteLine("Upload done.");
 
             if (!await WaitForFileSizeMatch(temp_data_node_path, (long)hdr.datasize, 3))
             {
                 File.Delete(temp_data_node_path);
                 throw new ProgramException("The upload byte length of the destination never reached the intended stream size.");
-            } 
+            }
 
             try
             {
@@ -201,9 +234,9 @@ namespace MDACS.Database
             item.security_id = BitConverter.ToString(security_id_bytes).Replace("-", "").ToLower();
             item.timestr = hdr.timestr;
             item.userstr = hdr.userstr;
-            item.versions = null;
+            item.sources = null;
             item.state = "";
-            item.uploaded_by_user = info.user.user;
+            //item.uploaded_by_user = info.user.user;
 
             await shandler.WriteItemToJournal(item);
 

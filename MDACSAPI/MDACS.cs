@@ -46,7 +46,7 @@ namespace MDACS.API
         public struct DataResponse
         {
             public Database.Alert[] alerts;
-            public Database.DataItem[] data;
+            public Database.Item[] data;
         }
 
         struct AuthResponse
@@ -233,19 +233,33 @@ namespace MDACS.API
 
         }
 
-        public class DataItem
+        public class Item
         {
-            public string security_id;
-            public string node;
-            public string datatype;
-            public string datestr;
-            public string userstr;
-            public string devicestr;
-            public string timestr;
-            public string note;
+            public String security_id;
+            public String node;
+            public double duration;
+            public double metatime;
+            public String fqpath;
+            public String userstr;
+            public String timestr;
+            public String datestr;
+            public String devicestr;
+            public String datatype;
             public ulong datasize;
-            public float duration;
-            public string state;
+            public String note;
+            public String state;
+            public String uploaded_by_user;
+            public String[][] sources;
+
+            public static String Serialize(Item item)
+            {
+                return JsonConvert.SerializeObject(item);
+            }
+
+            public static Item Deserialize(String input)
+            {
+                return JsonConvert.DeserializeObject<Item>(input);
+            }
         }
 
         public static async Task<Stream> DownloadDataAsync(string security_id, string auth_url, string db_url, string username, string password)
@@ -324,11 +338,13 @@ namespace MDACS.API
             header.timestr = timestr;
             header.userstr = userstr;
 
-            var packet = API.Auth.BuildAuthWithPayloadAsync(
+            var payload = JsonConvert.SerializeObject(header);
+
+            var packet = await API.Auth.BuildAuthWithPayloadAsync(
                 auth_url, 
                 username, 
-                password, 
-                JsonConvert.SerializeObject(header)
+                password,
+                payload
             );
             var packet_bytes = Encoding.UTF8.GetBytes($"{packet}\n");
 

@@ -18,38 +18,10 @@ using System.Security.Cryptography;
 using MDACS.Server;
 using static MDACS.Logger;
 using static MDACS.Server.HTTPClient2;
+using static MDACS.API.Database;
 
 namespace MDACS.Database
 {
-    public class Item
-    {
-        public String security_id;
-        public String node;
-        public double duration;
-        public double metatime;
-        public String fqpath;
-        public String userstr;
-        public String timestr;
-        public String datestr;
-        public String devicestr;
-        public String datatype;
-        public ulong datasize;
-        public String note;
-        public String state;
-        public String uploaded_by_user;
-        public String[][] versions;
-
-        public static String Serialize(Item item)
-        {
-            return JsonConvert.SerializeObject(item);
-        }
-
-        public static Item Deserialize(String input)
-        {
-            return JsonConvert.DeserializeObject<Item>(input);
-        }
-    }
-
     /// <summary>
     /// A type of exception that all exceptions thrown by this program must derive from. If any exception caught must only be rethrown
     /// if it is embedded as the `caught_exception` property of this class. This can be done by calling the appropriate constructor.
