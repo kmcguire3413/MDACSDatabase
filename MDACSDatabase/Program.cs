@@ -48,6 +48,9 @@ namespace MDACS.Database
 
     internal class JournalHashException: ProgramException
     {
+        public JournalHashException(String msg) : base(msg)
+        {
+        }
     }
 
     internal class UnauthorizedException: ProgramException
@@ -177,22 +180,29 @@ namespace MDACS.Database
     internal class ServerHandler : IHTTPServerHandler
     {
         public Dictionary<String, Item> items;
-        public String auth_url;
-        public String metajournal_path;
-        public String data_path;
-        public String config_path;
+        public String auth_url { get;  }
+        public String metajournal_path { get; }
+        public String data_path { get; }
+        public String config_path { get; }
+
+        private long used_space;
+        private long max_storage_space;
 
         public ServerHandler(
             String metajournal_path,
             String data_path,
             String config_path,
-            String auth_url
+            String auth_url,
+            int cluster_size,
+            long max_storage_space
         )
         {
             this.data_path = data_path;
             this.config_path = config_path;
             this.auth_url = auth_url;
             this.metajournal_path = metajournal_path;
+            this.used_space = 0;
+            this.max_storage_space = max_storage_space;
 
             items = new Dictionary<string, Item>();
 
@@ -207,11 +217,23 @@ namespace MDACS.Database
 
             Console.WriteLine("Reading journal into memory.");
 
+            long line_no = 0;
+
             while (!mj.EndOfStream)
             {
+                line_no++;
+
                 var line = mj.ReadLine();
 
                 var colon_ndx = line.IndexOf(':');
+
+                if (colon_ndx < 0)
+                {
+                    Console.WriteLine($"The line {line_no} had no colon.");
+                    continue;
+                }
+
+                // TODO: add command line option to treat errors below as exceptional conditions and fail
 
                 var hash = line.Substring(0, colon_ndx);
                 var meta = line.Substring(colon_ndx + 1).TrimEnd();
@@ -222,11 +244,19 @@ namespace MDACS.Database
 
                 if (hash != correct_hash)
                 {
-                    mj.Dispose();
-                    throw new JournalHashException();
+                    Console.WriteLine($"Hash mismatch at line {line_no} for meta:\n{meta}\n File hash is:\n{hash}\n...and the correct hash is:\n{correct_hash}\n.");
                 }
 
-                var metaitem = Item.Deserialize(meta);
+                Item metaitem;
+
+                try
+                {
+                    metaitem = Item.Deserialize(meta);
+                } catch (JsonReaderException ex)
+                {
+                    Console.WriteLine($"JSON reader exception at line {line_no} thrown:\n{ex}");
+                    continue;
+                }
 
                 var sid = metaitem.security_id;
 
@@ -248,9 +278,46 @@ namespace MDACS.Database
                 }
             }
 
+            foreach (var item in items)
+            {
+                // TODO: Add runtime overflow check. But, how likely is it to have a datasize > 2 ** 63?
+                // TODO: Unless using the automatic overflow checks will catch this problem?
+                if (item.Value.fqpath != null && item.Value.fqpath.Length > 0)
+                {
+                    if (File.Exists(item.Value.fqpath))
+                    {
+                        this.used_space += (long)item.Value.datasize;
+                    }
+                }
+            }
+
             Console.WriteLine("Done reading journal into memory.");
 
             mj.Dispose();
+        }
+
+        public long GetUsedSpace()
+        {
+            return this.used_space;
+        }
+
+        public long GetMaxSpace()
+        {
+            return this.max_storage_space;
+        }
+
+        public long UsedSpaceAdd(long size)
+        {
+            this.used_space += size;
+
+            return this.used_space;
+        }
+
+        public long UsedSpaceSubtract(long size)
+        {
+            this.used_space -= size;
+
+            return this.used_space;
         }
 
         public async Task<bool> WriteItemToJournal(Item item)
@@ -296,6 +363,7 @@ namespace MDACS.Database
             handlers.Add("/commitset", HandleCommitSet.Action);
             handlers.Add("/commit-configuration", HandleCommitConfiguration.Action);
             handlers.Add("/delete", HandleDelete.Action);
+            handlers.Add("/spaceinfo", HandleSpaceInfo.Action);
 
             // missing /delete
             // missing /commit
@@ -359,7 +427,9 @@ namespace MDACS.Database
                 metajournal_path: cfg.metajournal_path,
                 data_path: cfg.data_path,
                 config_path: cfg.config_path,
-                auth_url: cfg.auth_url
+                auth_url: cfg.auth_url,
+                cluster_size: 4096,
+                max_storage_space: (long)1024 * 1024 * 1024 * 680
             );
 
             var server = new HTTPServer<ServerHandler>(handler, cfg.cert_path, cfg.cert_pass);

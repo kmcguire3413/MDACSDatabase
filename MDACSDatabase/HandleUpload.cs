@@ -246,6 +246,8 @@ namespace MDACS.Database
             uresponse.fqpath = item.fqpath;
             uresponse.security_id = item.security_id;
 
+            shandler.UsedSpaceAdd((long)hdr.datasize);
+
             await encoder.WriteQuickHeader(200, "OK");
             await encoder.BodyWriteSingleChunk(JsonConvert.SerializeObject(uresponse));
         }

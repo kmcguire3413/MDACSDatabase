@@ -14,17 +14,17 @@ namespace MDACS.API
     {
         public class UploadHeader
         {
-            public String datestr;
-            public String timestr;
-            public String devicestr;
-            public String userstr;
-            public String datatype;
+            public string datestr;
+            public string timestr;
+            public string devicestr;
+            public string userstr;
+            public string datatype;
             public ulong datasize;
         }
 
         public class CommitSetRequest
         {
-            public String security_id;
+            public string security_id;
             public JObject meta;
         }
     }
@@ -39,8 +39,8 @@ namespace MDACS.API
         public struct UploadResponse
         {
             public bool success;
-            public String security_id;
-            public String fqpath;
+            public string security_id;
+            public string fqpath;
         }
 
         public struct DataResponse
@@ -57,23 +57,23 @@ namespace MDACS.API
         public class AuthCheckResponse
         {
             public bool success;
-            public String payload;
+            public string payload;
             public Auth.User user;
         }
     }
 
     public class Session
     {
-        public String auth_url { get; }
-        public String db_url { get;  }
-        public String username { get; }
-        public String password { get; }
+        public string auth_url { get; }
+        public string db_url { get;  }
+        public string username { get; }
+        public string password { get; }
 
         public Session(
-            String auth_url,
-            String db_url,
-            String username,
-            String password
+            string auth_url,
+            string db_url,
+            string username,
+            string password
             )
         {
             this.auth_url = auth_url;
@@ -82,7 +82,7 @@ namespace MDACS.API
             this.password = password;
         }
 
-        public async Task<Responses.CommitSetResponse> CommitSetAsync(String sid, JObject meta)
+        public async Task<Responses.CommitSetResponse> CommitSetAsync(string sid, JObject meta)
         {
             return await Database.CommitSetAsync(
                 auth_url,
@@ -96,11 +96,11 @@ namespace MDACS.API
 
         public async Task<Responses.UploadResponse> UploadAsync(
             long datasize,
-            String datatype,
-            String datestr,
-            String devicestr,
-            String timestr,
-            String userstr,
+            string datatype,
+            string datestr,
+            string devicestr,
+            string timestr,
+            string userstr,
             Stream data
         )
         {
@@ -233,32 +233,107 @@ namespace MDACS.API
 
         }
 
+        public enum ItemSourceType
+        {
+            AmazonGlacier = 0,
+            CIFSPrivateNetwork = 1,
+        }
+
         public class Item
         {
-            public String security_id;
-            public String node;
+            public string security_id;
+            public string node;
             public double duration;
             public double metatime;
-            public String fqpath;
-            public String userstr;
-            public String timestr;
-            public String datestr;
-            public String devicestr;
-            public String datatype;
+            public string fqpath;
+            public string userstr;
+            public string timestr;
+            public string datestr;
+            public string devicestr;
+            public string datatype;
             public ulong datasize;
-            public String note;
-            public String state;
-            public String uploaded_by_user;
-            public String[][] sources;
+            public string note;
+            public string state;
+            public string uploaded_by_user;
+            public List<string[]> sources;
 
-            public static String Serialize(Item item)
+            public static string Serialize(Item item)
             {
                 return JsonConvert.SerializeObject(item);
             }
 
-            public static Item Deserialize(String input)
+            public static Item Deserialize(string input)
             {
                 return JsonConvert.DeserializeObject<Item>(input);
+            }
+
+            /// <summary>
+            /// 
+            /// </summary>
+            /// <remarks>Do we need this method?</remarks>
+            /// <param name="source_type"></param>
+            /// <param name="identifer"></param>
+            /// <returns></returns>
+            public bool AddSource(ItemSourceType source_type, string identifer)
+            {
+                if (!HasSource(source_type, identifer))
+                {
+                    string source_type_str = "Unknown";
+
+                    switch (source_type)
+                    {
+                        case ItemSourceType.AmazonGlacier:
+                            source_type_str = "AmazonGlacier";
+                            break;
+                        case ItemSourceType.CIFSPrivateNetwork:
+                            source_type_str = "PrivateCIFS";
+                            break;
+                        default:
+                            throw new NotImplementedException();
+                    }
+
+                    sources.Add(new string[] { source_type_str, identifer });
+
+                    return true;
+                }
+
+                return false;
+            }
+
+            /// <summary>
+            /// 
+            /// </summary>
+            /// <remarks>Do we need this method?</remarks>
+            /// <param name="source_type"></param>
+            /// <param name="identifier"></param>
+            /// <returns></returns>
+            public bool HasSource(ItemSourceType source_type, string identifier)
+            {
+                foreach (var src in sources)
+                {
+                    if (src.Length < 2)
+                    {
+                        continue;
+                    }
+
+                    switch (src[0])
+                    {
+                        case "AmazonGlacier":
+                            if (source_type == ItemSourceType.AmazonGlacier && src[1] == identifier)
+                            {
+                                return true;
+                            }
+                            break;
+                        case "PrivateCIFS":
+                            if (source_type == ItemSourceType.CIFSPrivateNetwork && src[1] == identifier)
+                            {
+                                return true;
+                            }
+                            break;
+                    }
+                }
+
+                return false;
             }
         }
 
@@ -266,7 +341,7 @@ namespace MDACS.API
         {
             return await ReadStreamTransactionAsync(
                 auth_url,
-                String.Format("{0}/download?{1}", db_url, security_id),
+                string.Format("{0}/download?{1}", db_url, security_id),
                 username,
                 password,
                 "{}"
@@ -277,7 +352,7 @@ namespace MDACS.API
         {
             return ReadStreamTransaction(
                 auth_url,
-                String.Format("{0}/download?{1}", db_url, security_id),
+                string.Format("{0}/download?{1}", db_url, security_id),
                 username,
                 password,
                 "{}"
@@ -285,11 +360,11 @@ namespace MDACS.API
         }
 
         public static async Task<Responses.CommitSetResponse> CommitSetAsync(
-            String auth_url, 
-            String db_url, 
-            String username, 
-            String password, 
-            String sid, 
+            string auth_url, 
+            string db_url, 
+            string username, 
+            string password, 
+            string sid, 
             JObject meta)
         {
             var csreq = new Requests.CommitSetRequest();
@@ -311,16 +386,16 @@ namespace MDACS.API
         }
 
         public static async Task<Responses.UploadResponse> UploadAsync(
-            String auth_url,
-            String db_url,
-            String username,
-            String password,
+            string auth_url,
+            string db_url,
+            string username,
+            string password,
             long datasize,
-            String datatype,
-            String datestr,
-            String devicestr,
-            String timestr,
-            String userstr,
+            string datatype,
+            string datestr,
+            string devicestr,
+            string timestr,
+            string userstr,
             Stream data
         )
         {
@@ -385,7 +460,7 @@ namespace MDACS.API
 
             var stream = await ReadStreamTransactionAsync(
                 auth_url,
-                String.Format("{0}/data", db_url),
+                string.Format("{0}/data", db_url),
                 username,
                 password,
                 payload
@@ -420,7 +495,7 @@ namespace MDACS.API
 
             var stream = ReadStreamTransaction(
                 auth_url,
-                String.Format("{0}/data", db_url),
+                string.Format("{0}/data", db_url),
                 username,
                 password,
                 payload
@@ -478,14 +553,14 @@ namespace MDACS.API
             return sb.ToString();
         }
 
-        public static async Task<String> AuthTransactionAsync(String auth_url, String msg)
+        public static async Task<string> AuthTransactionAsync(string auth_url, string msg)
         {
             WebRequest req;
             WebResponse resp;
             Stream data;
             StreamReader reader;
 
-            Console.WriteLine(String.Format("creating web request to {0}", auth_url));
+            Console.WriteLine(string.Format("creating web request to {0}", auth_url));
 
             req = WebRequest.Create(auth_url);
 
@@ -517,7 +592,7 @@ namespace MDACS.API
             return await reader.ReadToEndAsync();
         }
 
-        public static async Task<String> GetAuthChallengeAsync(string auth_url)
+        public static async Task<string> GetAuthChallengeAsync(string auth_url)
         {
             WebRequest req;
             WebResponse resp;
@@ -526,7 +601,7 @@ namespace MDACS.API
             string json;
             Responses.AuthResponse auth_resp;
 
-            req = WebRequest.Create(String.Format("{0}/challenge", auth_url));
+            req = WebRequest.Create(string.Format("{0}/challenge", auth_url));
 
             req.Method = "POST";
             req.ContentType = "text/json";
@@ -558,33 +633,33 @@ namespace MDACS.API
         public class Msg
         {
             public MsgAuth auth;
-            public String payload;
+            public string payload;
         }
 
         public class User
         {
-            public String name;
-            public String user;
-            public String hash;
+            public string name;
+            public string user;
+            public string hash;
             public bool admin;
-            public String userfiler;
+            public string userfiler;
             public bool can_delete;
         }
 
         public class AuthCheckPayload
         {
-            public String chash;
-            public String phash;
-            public String challenge;
+            public string chash;
+            public string phash;
+            public string challenge;
         }
 
         public class AuthCheckNoPayload
         {
-            public String hash;
-            public String challenge;
+            public string hash;
+            public string challenge;
         }
 
-        public static async Task<Responses.AuthCheckResponse> AuthenticateMessageAsync(String auth_url, String msg)
+        public static async Task<Responses.AuthCheckResponse> AuthenticateMessageAsync(string auth_url, string msg)
         {
             var msg_decoded = JsonConvert.DeserializeObject<Msg>(msg);
 
@@ -604,7 +679,7 @@ namespace MDACS.API
             );
         }
 
-        public static async Task<Responses.AuthCheckResponse> AuthenticateMessageAsync(String auth_url, Msg msg)
+        public static async Task<Responses.AuthCheckResponse> AuthenticateMessageAsync(string auth_url, Msg msg)
         {
             if (msg.payload == null) {
                 Console.WriteLine("authenticating message with no payload");
@@ -614,7 +689,7 @@ namespace MDACS.API
                 checknp.challenge = msg.auth.challenge;
 
                 var resp_string = await AuthTransactionAsync(
-                    String.Format("{0}/verify", auth_url),
+                    string.Format("{0}/verify", auth_url),
                     JsonConvert.SerializeObject(checknp)
                 );
 
@@ -640,7 +715,7 @@ namespace MDACS.API
             Console.WriteLine("doing actual verify-payload call");
 
             var resp_string2 = await AuthTransactionAsync(
-                String.Format("{0}/verify-payload", auth_url),
+                string.Format("{0}/verify-payload", auth_url),
                 JsonConvert.SerializeObject(check)
             );
 
@@ -653,7 +728,7 @@ namespace MDACS.API
             return resp;
         }
 
-        public static async Task<String> BuildAuthWithPayloadAsync(string auth_url, string username, string password, string payload)
+        public static async Task<string> BuildAuthWithPayloadAsync(string auth_url, string username, string password, string payload)
         {
             var challenge = await GetAuthChallengeAsync(auth_url);
             var hasher = new SHA512Managed();
@@ -662,7 +737,7 @@ namespace MDACS.API
             var password_hash = hasher.ComputeHash(Encoding.ASCII.GetBytes(password));
 
             var complete_hash = hasher.ComputeHash(
-                Encoding.ASCII.GetBytes(String.Format(
+                Encoding.ASCII.GetBytes(string.Format(
                     "{0}{1}{2}{3}",
                     ByteArrayToHexString(payload_hash),
                     challenge,

@@ -126,16 +126,18 @@ namespace MDACS.Server
             
             wh.Wait();
 
-            //Console.WriteLine("wh.Wait() completed; now locking chunks");
+#if DOUBLE_ENDED_STREAM_DEBUG
+            Console.WriteLine("wh.Wait() completed; now locking chunks");
+#endif
 
             lock (chunks)
             {
 
                 if (chunks.Count < 1)
                 {
-//#if DOUBLE_ENDED_STREAM_DEBUG
-                    //Console.WriteLine("{0}.Read: No chunks readable.", this);
-//#endif
+#if DOUBLE_ENDED_STREAM_DEBUG
+                    Console.WriteLine("{0}.Read: No chunks readable.", this);
+#endif
                     return 0;
                 }
 
@@ -145,18 +147,18 @@ namespace MDACS.Server
 
                 if (chunk.data == null)
                 {
-//#if DOUBLE_ENDED_STREAM_DEBUG
+#if DOUBLE_ENDED_STREAM_DEBUG
                     Console.WriteLine("{0}.Read: Stream closed on read.", this);
-                    //#endif
+#endif
                     end_reached = true;
                     return 0;
                 }
 
                 if (count < chunk.actual)
                 {
-//#if DOUBLE_ENDED_STREAM_DEBUG
+#if DOUBLE_ENDED_STREAM_DEBUG
                     Console.WriteLine("{0}.Read: Read amount less than current chunk. chunk.offset={1} chunk.actual={2}", this, chunk.offset, chunk.actual);
-//#endif
+#endif
                     Array.Copy(chunk.data, chunk.offset, buffer, offset, count);
 
                     // Only take partial amount from the chunk.
@@ -166,8 +168,9 @@ namespace MDACS.Server
                     // Add another thread entry since this items was never actually removed.
                     wh.Release();
 
+#if DOUBLE_ENDED_STREAM_DEBUG
                     Console.WriteLine($"chunk={chunk} chunk.offset={chunk.offset} chunk.actual={chunk.actual}");
-
+#endif
                     used -= count;
                     pos += count;
 
