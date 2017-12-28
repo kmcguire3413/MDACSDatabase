@@ -105,7 +105,7 @@ namespace MDACS.App
             HTTPDecoder decoder,
             HTTPEncoder encoder,
             Dictionary<String, HTTPClient3Handler> handlers
-        ) : base(shandler, decoder, encoder)
+        ) : base(decoder, encoder)
         {
             this.shandler = shandler as ServerHandler;
             this.handlers = handlers;
@@ -172,7 +172,7 @@ namespace MDACS.App
             this.db_url = db_url;
         }
 
-        public override HTTPClient CreateClient(IHTTPServerHandler shandler, HTTPDecoder decoder, HTTPEncoder encoder)
+        public override HTTPClient CreateClient(HTTPDecoder decoder, HTTPEncoder encoder)
         {
             var handlers = new Dictionary<String, HTTPClient3Handler>();
 
@@ -187,7 +187,7 @@ namespace MDACS.App
             handlers.Add("/download", Handlers.Download);*/
 
             return new HTTPClient3(
-                shandler: shandler,
+                shandler: this,
                 decoder: decoder,
                 encoder: encoder,
                 handlers: handlers
