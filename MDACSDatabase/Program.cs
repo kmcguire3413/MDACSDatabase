@@ -18,10 +18,37 @@ using System.Security.Cryptography;
 using MDACS.Server;
 using static MDACS.Logger;
 using static MDACS.Server.HTTPClient2;
-using static MDACS.API.Database;
 
 namespace MDACS.Database
 {
+    public class Item
+    {
+        public String security_id;
+        public String node;
+        public double duration;
+        public double metatime;
+        public String fqpath;
+        public String userstr;
+        public String timestr;
+        public String datestr;
+        public String devicestr;
+        public String datatype;
+        public ulong datasize;
+        public String note;
+        public String state;
+        public String[][] versions;
+
+        public static String Serialize(Item item)
+        {
+            return JsonConvert.SerializeObject(item);
+        }
+
+        public static Item Deserialize(String input)
+        {
+            return JsonConvert.DeserializeObject<Item>(input);
+        }
+    }
+
     /// <summary>
     /// A type of exception that all exceptions thrown by this program must derive from. If any exception caught must only be rethrown
     /// if it is embedded as the `caught_exception` property of this class. This can be done by calling the appropriate constructor.
@@ -63,7 +90,7 @@ namespace MDACS.Database
 
     internal class Helpers
     {
-        public static async Task<API.Responses.AuthCheckResponse> ReadMessageFromStreamAndAuthenticate(ServerHandler shandler, int max_size, Stream input_stream)
+        public static async Task<AuthCheckResponse> ReadMessageFromStreamAndAuthenticate(ServerHandler shandler, int max_size, Stream input_stream)
         {
             var buf = new byte[1024 * 32];
             int pos = 0;
@@ -196,11 +223,6 @@ namespace MDACS.Database
 
             items = new Dictionary<string, Item>();
 
-            if (!File.Exists(metajournal_path))
-            {
-                File.Create(metajournal_path).Dispose();
-            }
-
             var mj = File.OpenText(metajournal_path);
 
             var hasher = MD5.Create();
@@ -303,7 +325,6 @@ namespace MDACS.Database
             handlers.Add("/data", HandleData.Action);
             handlers.Add("/commitset", HandleCommitSet.Action);
             handlers.Add("/commit-configuration", HandleCommitConfiguration.Action);
-            handlers.Add("/delete", HandleDelete.Action);
 
             // missing /delete
             // missing /commit
@@ -317,20 +338,18 @@ namespace MDACS.Database
         }
     }
 
-    public struct ProgramConfig
+    struct ProgramConfig
     {
         public String metajournal_path;
         public String data_path;
         public String config_path;
         public String auth_url;
-        public String cert_path;
-        public String cert_pass;
         public ushort port;
     }
 
-    public class Program
+    class Program
     {
-        public static void Main(string[] args)
+        static void Main(string[] args)
         {
             if (args.Length < 1)
             {
@@ -345,7 +364,6 @@ namespace MDACS.Database
                     data_path = "The path to the directory containing the data files backing the journal.",
                     config_path = "The path to the directory holding device configuration files.",
                     auth_url = "The HTTP or HTTPS URL to the authentication service.",
-                    cert_path = "The PFX file that contains both the private and public keys for communications.",
                     port = 34001,
                 };
 
@@ -370,7 +388,7 @@ namespace MDACS.Database
                 auth_url: cfg.auth_url
             );
 
-            var server = new HTTPServer<ServerHandler>(handler, cfg.cert_path, cfg.cert_pass);
+            var server = new HTTPServer<ServerHandler>(handler, "test.pfx", "hello");
             server.Start(cfg.port).Wait();
 
             /*

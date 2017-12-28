@@ -52,14 +52,20 @@ namespace MDACS.Database
                 try
                 {
                     File.Delete(item.fqpath);
-                } catch (Exception ex)
+                } catch (Exception _)
                 {
                     await encoder.WriteQuickHeader(200, "OK");
                     await encoder.BodyWriteSingleChunk("{ \"success\": false }");
                     return;
                 }
 
-                item.state = "deleted";
+                if (item.fqpath != null && item.fqpath.Length > 0)
+                {
+                    shandler.UsedSpaceSubtract((long)item.datasize);
+                }
+
+                item.fqpath = null;
+
                 await shandler.WriteItemToJournal(item);
             }
 
