@@ -19,6 +19,7 @@ using MDACS.Server;
 using static MDACS.Logger;
 using static MDACS.Server.HTTPClient2;
 using static MDACS.API.Database;
+using Newtonsoft.Json.Linq;
 
 namespace MDACS.Database
 {
@@ -143,7 +144,7 @@ namespace MDACS.Database
             HTTPDecoder decoder,
             HTTPEncoder encoder,
             Dictionary<String, HTTPClient3Handler> handlers
-        ) : base(shandler, decoder, encoder)
+        ) : base(decoder, encoder)
         {
             this.shandler = shandler as ServerHandler;
             this.handlers = handlers;
@@ -180,19 +181,24 @@ namespace MDACS.Database
     internal class ServerHandler : IHTTPServerHandler
     {
         public Dictionary<String, Item> items;
-        public String auth_url { get;  }
-        public String metajournal_path { get; }
-        public String data_path { get; }
-        public String config_path { get; }
+        public string auth_url { get;  }
+        public string metajournal_path { get; }
+        public string data_path { get; }
+        public string config_path { get; }
+        public string manager_uuid { get; }
+        private RSA private_signature_key;
 
         private long used_space;
         private long max_storage_space;
 
         public ServerHandler(
-            String metajournal_path,
-            String data_path,
-            String config_path,
-            String auth_url,
+            string metajournal_path,
+            string data_path,
+            string config_path,
+            string auth_url,
+            string universal_records_key_path,
+            string universal_records_key_pass,
+            string universal_records_url,
             int cluster_size,
             long max_storage_space
         )
@@ -251,7 +257,17 @@ namespace MDACS.Database
 
                 try
                 {
-                    metaitem = Item.Deserialize(meta);
+                    var meta_dyn = JsonConvert.DeserializeObject<JObject>(meta);
+
+                    var directive = meta_dyn["directive"];
+
+                    if (directive != null && directive.ToObject<string>().Equals("uuid"))
+                    {
+                        manager_uuid = directive.ToObject<string>();
+                        continue;
+                    }
+
+                    metaitem = meta_dyn.ToObject<Item>();
                 } catch (JsonReaderException ex)
                 {
                     Console.WriteLine($"JSON reader exception at line {line_no} thrown:\n{ex}");
@@ -291,9 +307,49 @@ namespace MDACS.Database
                 }
             }
 
+            if (manager_uuid == null)
+            {
+                manager_uuid = new System.Guid().ToString();
+
+                var entry = new JObject();
+
+                var x509 = new X509Certificate2(universal_records_key_path, universal_records_key_pass);
+
+                this.private_signature_key = x509.PrivateKey as RSA;
+
+                entry["directive"] = "uuid";
+                entry["uuid"] = manager_uuid;
+                entry["public_key"] = Convert.ToBase64String(x509.PublicKey.EncodedKeyValue.RawData);
+
+                var tsk = WriteItemToJournal(entry);
+
+                tsk.Wait();
+
+                if (tsk.Exception != null)
+                {
+                    throw tsk.Exception;
+                }
+            }
+
             Console.WriteLine("Done reading journal into memory.");
 
             mj.Dispose();
+        }
+
+        public String EncryptString(string data)
+        {
+            var aes = Aes.Create();
+            var aes_key_encrypted = private_signature_key.Encrypt(aes.Key, RSAEncryptionPadding.OaepSHA512);
+            var enc = aes.CreateEncryptor();
+            var data_bytes = Encoding.UTF8.GetBytes(data);
+            var data_aes_crypted = enc.TransformFinalBlock(data_bytes, 0, data_bytes.Length);
+            return $"{Convert.ToBase64String(aes_key_encrypted)}#{Convert.ToBase64String(data_aes_crypted)}";
+        }
+
+        public string SignString(string data)
+        {
+            var output = private_signature_key.SignData(Encoding.UTF8.GetBytes(data), HashAlgorithmName.SHA512, RSASignaturePadding.Pkcs1);
+            return Convert.ToBase64String(output);
         }
 
         public long GetUsedSpace()
@@ -320,11 +376,11 @@ namespace MDACS.Database
             return this.used_space;
         }
 
-        public async Task<bool> WriteItemToJournal(Item item)
+        public async Task<bool> WriteItemToJournal(string meta)
         {
             using (var mj = File.Open(this.metajournal_path, FileMode.Append))
             {
-                var meta = Item.Serialize(item);
+                //var meta = Item.Serialize(item);
                 var hasher = MD5.Create();
 
                 var hash = BitConverter.ToString(
@@ -336,6 +392,21 @@ namespace MDACS.Database
                 byte[] line_bytes = Encoding.UTF8.GetBytes(String.Format("{0}:{1}\n", hash, meta));
 
                 await mj.WriteAsync(line_bytes, 0, line_bytes.Length);
+            }
+
+            return true;
+        }
+
+        public async Task<bool> WriteItemToJournal(JObject item)
+        {
+            return await WriteItemToJournal(JsonConvert.SerializeObject(item));
+        }
+
+        public async Task<bool> WriteItemToJournal(Item item) {
+
+            if (!await WriteItemToJournal(JsonConvert.SerializeObject(item)))
+            {
+                return false;
             }
 
             if (items.ContainsKey(item.security_id))
@@ -350,7 +421,7 @@ namespace MDACS.Database
             return true;
         }
 
-        public override HTTPClient CreateClient(IHTTPServerHandler shandler, HTTPDecoder decoder, HTTPEncoder encoder)
+        public override HTTPClient CreateClient(HTTPDecoder decoder, HTTPEncoder encoder)
         {
             var handlers = new Dictionary<String, HTTPClient3Handler>();
 
@@ -369,7 +440,7 @@ namespace MDACS.Database
             // missing /commit
             //      Prefer /commitset and /commit-batch-single-ops due to atomic compatibility.
             return new HTTPClient3(
-                shandler: shandler, 
+                shandler: this, 
                 decoder: decoder, 
                 encoder: encoder,
                 handlers: handlers
@@ -379,12 +450,15 @@ namespace MDACS.Database
 
     public struct ProgramConfig
     {
-        public String metajournal_path;
-        public String data_path;
-        public String config_path;
-        public String auth_url;
-        public String cert_path;
-        public String cert_pass;
+        public string metajournal_path;
+        public string data_path;
+        public string config_path;
+        public string auth_url;
+        public string ssl_cert_path;
+        public string ssl_cert_pass;
+        public string universal_records_key_path;
+        public string universal_records_key_pass;
+        public string universal_records_url;
         public ushort port;
     }
 
@@ -405,7 +479,8 @@ namespace MDACS.Database
                     data_path = "The path to the directory containing the data files backing the journal.",
                     config_path = "The path to the directory holding device configuration files.",
                     auth_url = "The HTTP or HTTPS URL to the authentication service.",
-                    cert_path = "The PFX file that contains both the private and public keys for communications.",
+                    ssl_cert_path = "The PFX file that contains both the private and public keys for communications.",
+                    universal_records_key_path = "The PFX file for the universal records system.",
                     port = 34001,
                 };
 
@@ -429,14 +504,14 @@ namespace MDACS.Database
                 config_path: cfg.config_path,
                 auth_url: cfg.auth_url,
                 cluster_size: 4096,
-                max_storage_space: (long)1024 * 1024 * 1024 * 680
+                max_storage_space: (long)1024 * 1024 * 1024 * 680,
+                universal_records_key_path: cfg.universal_records_key_path,
+                universal_records_key_pass: cfg.universal_records_key_pass,
+                universal_records_url: cfg.universal_records_url
             );
 
-            var server = new HTTPServer<ServerHandler>(handler, cfg.cert_path, cfg.cert_pass);
+            var server = new HTTPServer<ServerHandler>(handler, cfg.ssl_cert_path, cfg.ssl_cert_pass);
             server.Start(cfg.port).Wait();
-
-            /*
-            var config = new Ceen.Httpd.ServerConfig();
 
             // Please do not let me forget this convulted retarded sequence to get from PEM to PFX with the private key.
             // openssl crl2pkcs7 -nocrl -inkey privkey.pem -certfile fullchain.pem -out test.p7b
@@ -444,42 +519,6 @@ namespace MDACS.Database
             // openssl pkcs12 -export -in test.cer -inkey privkey.pem -out test.pfx -nodes
             // THEN... for Windows, at least, import into cert store, then export with private key and password.
             // FINALLY... use the key now and make sure its X509Certificate2.. notice the 2 on the end? Yep.
-            var x509 = new X509Certificate2("c:\\users\\kmcgu\\Desktop\\test.pfx", "hello");
-
-            config.SSLCertificate = x509;
-
-            var server = new Server();
-
-            config.AddRoute(server);
-        
-            var listener = Ceen.Httpd.HttpServer.ListenAsync(
-                new IPEndPoint(IPAddress.Any, 34001),
-                true,
-                config
-            );
-
-            listener.Wait();
-            */
-
-            /*
-            var listener = new System.Net.HttpListener();
-            var server = new Server();
-
-            listener.Start();
-
-            listener.Prefixes.Add("https://127.0.0.1:34001/");
-
-            while (true)
-            {
-                var context = listener.GetContext();
-                //Task.Run(async () =>
-                //{
-
-                server.HandleContext(context);
-                
-                //});
-            }
-            */
         }
     }
 }

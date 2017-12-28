@@ -11,7 +11,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MDACSAPI\MDACSAPI.csproj" />
-    <ProjectReference Include="..\MDACSHTTPServer\MDACSHTTPServer.csproj" />
   </ItemGroup>
 
 </Project>

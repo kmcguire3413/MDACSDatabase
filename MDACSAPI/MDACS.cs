@@ -239,6 +239,27 @@ namespace MDACS.API
             CIFSPrivateNetwork = 1,
         }
 
+        public class UniversalRecordRegistration
+        {
+            public string uuid;
+            public string algorithm;
+            public string public_key;
+            public string organization;
+            public string department;
+            public string email;
+            public string phone;
+            public string contact_name;
+            public string uuid_extra;
+        }
+
+        public class UniversalRecordItem
+        {
+            public string uuid;
+            public string data_hash_sha512;
+            public string uuid_extension_data;
+            public string signature;
+        }
+
         public class Item
         {
             public string security_id;
@@ -255,7 +276,8 @@ namespace MDACS.API
             public string note;
             public string state;
             public string uploaded_by_user;
-            public List<string[]> sources;
+            public string data_hash_sha512;
+            public string manager_uuid;
 
             public static string Serialize(Item item)
             {
@@ -265,75 +287,6 @@ namespace MDACS.API
             public static Item Deserialize(string input)
             {
                 return JsonConvert.DeserializeObject<Item>(input);
-            }
-
-            /// <summary>
-            /// 
-            /// </summary>
-            /// <remarks>Do we need this method?</remarks>
-            /// <param name="source_type"></param>
-            /// <param name="identifer"></param>
-            /// <returns></returns>
-            public bool AddSource(ItemSourceType source_type, string identifer)
-            {
-                if (!HasSource(source_type, identifer))
-                {
-                    string source_type_str = "Unknown";
-
-                    switch (source_type)
-                    {
-                        case ItemSourceType.AmazonGlacier:
-                            source_type_str = "AmazonGlacier";
-                            break;
-                        case ItemSourceType.CIFSPrivateNetwork:
-                            source_type_str = "PrivateCIFS";
-                            break;
-                        default:
-                            throw new NotImplementedException();
-                    }
-
-                    sources.Add(new string[] { source_type_str, identifer });
-
-                    return true;
-                }
-
-                return false;
-            }
-
-            /// <summary>
-            /// 
-            /// </summary>
-            /// <remarks>Do we need this method?</remarks>
-            /// <param name="source_type"></param>
-            /// <param name="identifier"></param>
-            /// <returns></returns>
-            public bool HasSource(ItemSourceType source_type, string identifier)
-            {
-                foreach (var src in sources)
-                {
-                    if (src.Length < 2)
-                    {
-                        continue;
-                    }
-
-                    switch (src[0])
-                    {
-                        case "AmazonGlacier":
-                            if (source_type == ItemSourceType.AmazonGlacier && src[1] == identifier)
-                            {
-                                return true;
-                            }
-                            break;
-                        case "PrivateCIFS":
-                            if (source_type == ItemSourceType.CIFSPrivateNetwork && src[1] == identifier)
-                            {
-                                return true;
-                            }
-                            break;
-                    }
-                }
-
-                return false;
             }
         }
 
