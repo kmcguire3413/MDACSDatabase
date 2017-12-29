@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
-using static MDACS.Server.HTTPClient2;
 
 namespace MDACS.Database
 {
@@ -17,7 +16,7 @@ namespace MDACS.Database
             public Dictionary<String, String> configs;
         }
 
-        public static async Task Action(ServerHandler shandler, HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
+        public static async Task<Task> Action(ServerHandler shandler, HTTPRequest request, Stream body, IProxyHTTPEncoder encoder)
         {
             var auth = await Helpers.ReadMessageFromStreamAndAuthenticate(shandler, 1024 * 16, body);
 
@@ -75,6 +74,8 @@ namespace MDACS.Database
                 await encoder.BodyWriteStream(de_stream);
                 await de_stream.WriteAsync(tmp, 0, tmp.Length);
             }
+
+            return Task.CompletedTask;
         }
     }
 }

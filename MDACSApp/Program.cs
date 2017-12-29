@@ -16,7 +16,6 @@ using System.Threading;
 using System.Net.Security;
 using System.Security.Cryptography;
 using MDACS.Server;
-using static MDACS.Server.HTTPClient2;
 
 namespace MDACS.App
 {
@@ -58,7 +57,7 @@ namespace MDACS.App
 
     internal class Helpers
     {
-        public static async Task<API.Responses.AuthCheckResponse> ReadMessageFromStreamAndAuthenticate(ServerHandler shandler, int max_size, Stream input_stream)
+        public static async Task<API.Responses.AuthCheckResponse> ReadMessageFromStreamAndAuthenticate(ServerState shandler, int max_size, Stream input_stream)
         {
             var buf = new byte[1024 * 32];
             int pos = 0;
@@ -92,78 +91,31 @@ namespace MDACS.App
             return resp;
         }
     }
-
-    internal delegate Task HTTPClient3Handler(ServerHandler shandler, HTTPRequest request, Stream body, ProxyHTTPEncoder encoder);
-
-    internal class HTTPClient3 : HTTPClient2
-    {
-        private ServerHandler shandler;
-        private Dictionary<String, HTTPClient3Handler> handlers;
-
-        public HTTPClient3(
-            IHTTPServerHandler shandler,
-            HTTPDecoder decoder,
-            HTTPEncoder encoder,
-            Dictionary<String, HTTPClient3Handler> handlers
-        ) : base(decoder, encoder)
-        {
-            this.shandler = shandler as ServerHandler;
-            this.handlers = handlers;
-        }
-
-        /// <summary>
-        /// The entry point for route handling. Provides common error response from exception propogation.
-        /// </summary>
-        /// <param name="request"></param>
-        /// <param name="body"></param>
-        /// <param name="encoder"></param>
-        /// <returns>Asynchronous task object.</returns>
-        public override async Task HandleRequest2(HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
-        {
-            try
-            {
-                Console.WriteLine(String.Format("url={0}", request.url));
-
-                if (!this.handlers.ContainsKey(request.url_absolute))
-                {
-                    throw new NotImplementedException();
-                }
-
-                await this.handlers[request.url_absolute](this.shandler, request, body, encoder);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("==== EXCEPTION ====");
-                Console.WriteLine(ex.Message);
-                Console.WriteLine(ex.StackTrace);
-            }
-        }
-    }
-
+    
     static class Handlers
     {
-        public static async Task Index(ServerHandler shandler, HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
+        public static async Task<Task> Index(ServerState shandler, HTTPRequest request, Stream body, IProxyHTTPEncoder encoder)
         {
-
+            return Task.CompletedTask;
         }
 
-        public static async Task Viewer(ServerHandler shandler, HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
+        public static async Task<Task> Viewer(ServerState shandler, HTTPRequest request, Stream body, IProxyHTTPEncoder encoder)
         {
-
+            return Task.CompletedTask;
         }
 
-        public static async Task Utility(ServerHandler shandler, HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
+        public static async Task<Task> Utility(ServerState shandler, HTTPRequest request, Stream body, IProxyHTTPEncoder encoder)
         {
-
+            return Task.CompletedTask;
         }
     }
 
-    internal class ServerHandler : IHTTPServerHandler
+    internal class ServerState
     {
         public String auth_url;
         public String db_url;
 
-        public ServerHandler(
+        public ServerState(
             String auth_url,
             String db_url
         )
@@ -171,34 +123,15 @@ namespace MDACS.App
             this.auth_url = auth_url;
             this.db_url = db_url;
         }
-
-        public override HTTPClient CreateClient(HTTPDecoder decoder, HTTPEncoder encoder)
-        {
-            var handlers = new Dictionary<String, HTTPClient3Handler>();
-
-            handlers.Add("/", Handlers.Index);
-            /*handlers.Add("/enumerate-configurations", Handlers.EnumerateConfigurations);
-            handlers.Add("/viewer", Handlers.Viewer);
-            handlers.Add("/challenge", Handlers.Challenge);
-            handlers.Add("/utility", Handlers.Utility);
-            handlers.Add("/commitset", Handlers.CommitSet);
-            handlers.Add("/commit_batch_single_ops", Handlers.CommitBatchSingleOps);
-            handlers.Add("/data", Handlers.Data);
-            handlers.Add("/download", Handlers.Download);*/
-
-            return new HTTPClient3(
-                shandler: this,
-                decoder: decoder,
-                encoder: encoder,
-                handlers: handlers
-            );
-        }
     }
 
     struct ProgramConfig
     {
-        public String auth_url;
-        public String db_url;
+        public string auth_url;
+        public string db_url;
+        public ushort port;
+        public string ssl_cert_path;
+        public string ssl_cert_pass;
     }
 
     class Program
@@ -233,10 +166,24 @@ namespace MDACS.App
 
             cfgfp.Dispose();
 
-            var handler = new ServerHandler(
+            var server_state = new ServerState(
                 auth_url: cfg.auth_url,
                 db_url: cfg.db_url
             );
+
+            var handlers = new Dictionary<String, SimpleServer<ServerState>.SimpleHTTPHandler>();
+
+            handlers.Add("/", Handlers.Index);
+
+            var server_task = SimpleServer<ServerState>.Create(
+                server_state,
+                handlers,
+                cfg.port,
+                cfg.ssl_cert_path, 
+                cfg.ssl_cert_pass
+            );
+
+            server_task.Wait();
         }
     }
 }

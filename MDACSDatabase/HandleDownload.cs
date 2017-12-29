@@ -5,7 +5,6 @@ using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 using static MDACS.API.Database;
-using static MDACS.Server.HTTPClient2;
 
 namespace MDACS.Database
 {
@@ -16,7 +15,7 @@ namespace MDACS.Database
             public String security_id;
         }
 
-        static public async Task Action(ServerHandler shandler, HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
+        static public async Task<Task> Action(ServerHandler shandler, HTTPRequest request, Stream body, IProxyHTTPEncoder encoder)
         {
             // This URL route was never implemented with user security. The security ID itself is the security, but that
             // could be revised.
@@ -142,6 +141,8 @@ namespace MDACS.Database
 
                 await encoder.WriteHeader(header);
                 await encoder.BodyWriteStream(de_stream);
+
+                return Task.CompletedTask;
             }
         }
     }

@@ -9,7 +9,6 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using static MDACS.API.Database;
-using static MDACS.Server.HTTPClient2;
 
 namespace MDACS.Database
 {
@@ -81,7 +80,7 @@ namespace MDACS.Database
         /// <param name="body"></param>
         /// <param name="encoder"></param>
         /// <returns></returns>
-        public static async Task Action(ServerHandler shandler, HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
+        public static async Task<Task> Action(ServerHandler shandler, HTTPRequest request, Stream body, IProxyHTTPEncoder encoder)
         {
             var buf = new byte[1024 * 32];
             int bufndx = 0;
@@ -254,6 +253,7 @@ namespace MDACS.Database
             // so that global tracking can happen for where the data is located. This simplifies management
             // of location data for each item as it is replicated or moved.
 
+            /*
             var extension_data = shandler.EncryptString(JsonConvert.SerializeObject(item));
 
             var uri = new UniversalRecordItem()
@@ -271,6 +271,7 @@ namespace MDACS.Database
             };
 
             await shandler.WriteItemToJournal(item);
+            */
 
             var uresponse = new MDACS.API.Responses.UploadResponse();
 
@@ -282,6 +283,8 @@ namespace MDACS.Database
 
             await encoder.WriteQuickHeader(200, "OK");
             await encoder.BodyWriteSingleChunk(JsonConvert.SerializeObject(uresponse));
+
+            return Task.CompletedTask;
         }
     }
 }

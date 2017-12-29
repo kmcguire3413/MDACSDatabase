@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
-using static MDACS.Server.HTTPClient2;
 
 namespace MDACS.Database
 {
@@ -24,7 +23,7 @@ namespace MDACS.Database
             public String config_data;
         }
 
-        public static async Task Action(ServerHandler shandler, HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
+        public static async Task<Task> Action(ServerHandler shandler, HTTPRequest request, Stream body, IProxyHTTPEncoder encoder)
         {
             var buf = new byte[4096];
             int ndx = 0;
@@ -86,6 +85,8 @@ namespace MDACS.Database
 
             await encoder.WriteQuickHeader(200, "OK");
             await encoder.BodyWriteSingleChunk(JsonConvert.SerializeObject(resp));
+
+            return Task.CompletedTask;
         }
     }
 }
