@@ -5,7 +5,6 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using static MDACS.API.Database;
-using static MDACS.Server.HTTPClient2;
 
 namespace MDACS.Database
 {
@@ -22,7 +21,7 @@ namespace MDACS.Database
         /// <exception cref="InvalidArgumentException">One of the arguments was not correct or the reason for failure.</exception>
         /// <exception cref="ProgramException">Anything properly handled but needs handling for acknowlegement purposes.</exception>
         /// <exception cref="Exception">Anything else could result in instability.</exception>
-        public static async Task Action(ServerHandler shandler, HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
+        public static async Task<Task> Action(ServerHandler shandler, HTTPRequest request, Stream body, IProxyHTTPEncoder encoder)
         {
             var auth_resp = await Helpers.ReadMessageFromStreamAndAuthenticate(shandler, 1024 * 16, body);
 
@@ -88,6 +87,8 @@ namespace MDACS.Database
 
             await encoder.WriteQuickHeader(200, "OK");
             await encoder.BodyWriteSingleChunk(JsonConvert.SerializeObject(resp));
+
+            return Task.CompletedTask;
         }
     }
 }

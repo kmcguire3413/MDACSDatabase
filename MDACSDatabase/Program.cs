@@ -17,7 +17,6 @@ using System.Net.Security;
 using System.Security.Cryptography;
 using MDACS.Server;
 using static MDACS.Logger;
-using static MDACS.Server.HTTPClient2;
 using static MDACS.API.Database;
 using Newtonsoft.Json.Linq;
 
@@ -160,53 +159,7 @@ namespace MDACS.Database
         }
     }
 
-    internal delegate Task HTTPClient3Handler(ServerHandler shandler, HTTPRequest request, Stream body, ProxyHTTPEncoder encoder);
-
-    internal class HTTPClient3 : HTTPClient2
-    {
-        private ServerHandler shandler;
-        private Dictionary<String, HTTPClient3Handler> handlers;
-
-        public HTTPClient3(
-            IHTTPServerHandler shandler, 
-            HTTPDecoder decoder,
-            HTTPEncoder encoder,
-            Dictionary<String, HTTPClient3Handler> handlers
-        ) : base(decoder, encoder)
-        {
-            this.shandler = shandler as ServerHandler;
-            this.handlers = handlers;
-        }
-
-        /// <summary>
-        /// The entry point for route handling. Provides common error response from exception propogation.
-        /// </summary>
-        /// <param name="request"></param>
-        /// <param name="body"></param>
-        /// <param name="encoder"></param>
-        /// <returns>Asynchronous task object.</returns>
-        public override async Task HandleRequest2(HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
-        {
-            try
-            {
-                Logger.LogLine(String.Format("url={0}", request.url));
-
-                if (!this.handlers.ContainsKey(request.url_absolute))
-                {
-                    throw new NotImplementedException();
-                }
-
-                await this.handlers[request.url_absolute](this.shandler, request, body, encoder);
-            } catch (Exception ex)
-            {
-                Console.WriteLine("==== EXCEPTION ====");
-                Console.WriteLine(ex.Message);
-                Console.WriteLine(ex.StackTrace);
-            }
-        }
-    }
-
-    internal class ServerHandler : IHTTPServerHandler
+    internal class ServerHandler
     {
         public Dictionary<String, Item> items;
         public string auth_url { get;  }
@@ -312,21 +265,24 @@ namespace MDACS.Database
 
                 var entry = new JObject();
 
-                var x509 = new X509Certificate2(universal_records_key_path, universal_records_key_pass);
-
-                this.private_signature_key = x509.PrivateKey as RSA;
-
-                entry["directive"] = "uuid";
-                entry["uuid"] = manager_uuid;
-                entry["public_key"] = Convert.ToBase64String(x509.PublicKey.EncodedKeyValue.RawData);
-
-                var tsk = WriteItemToJournal(entry);
-
-                tsk.Wait();
-
-                if (tsk.Exception != null)
+                if (universal_records_key_path != null)
                 {
-                    throw tsk.Exception;
+                    var x509 = new X509Certificate2(universal_records_key_path, universal_records_key_pass);
+
+                    this.private_signature_key = x509.PrivateKey as RSA;
+
+                    entry["directive"] = "uuid";
+                    entry["uuid"] = manager_uuid;
+                    entry["public_key"] = Convert.ToBase64String(x509.PublicKey.EncodedKeyValue.RawData);
+
+                    var tsk = WriteItemToJournal(entry);
+
+                    tsk.Wait();
+
+                    if (tsk.Exception != null)
+                    {
+                        throw tsk.Exception;
+                    }
                 }
             }
 
@@ -419,32 +375,6 @@ namespace MDACS.Database
 
             return true;
         }
-
-        public override HTTPClient CreateClient(HTTPDecoder decoder, HTTPEncoder encoder)
-        {
-            var handlers = new Dictionary<String, HTTPClient3Handler>();
-
-            handlers.Add("/upload", HandleUpload.Action);
-            handlers.Add("/device-config", HandleDeviceConfig.Action);
-            handlers.Add("/commit_batch_single_ops", HandleBatchSingleOps.Action);
-            handlers.Add("/download", HandleDownload.Action);
-            handlers.Add("/enumerate-configurations", HandleEnumerateConfigurations.Action);
-            handlers.Add("/data", HandleData.Action);
-            handlers.Add("/commitset", HandleCommitSet.Action);
-            handlers.Add("/commit-configuration", HandleCommitConfiguration.Action);
-            handlers.Add("/delete", HandleDelete.Action);
-            handlers.Add("/spaceinfo", HandleSpaceInfo.Action);
-
-            // missing /delete
-            // missing /commit
-            //      Prefer /commitset and /commit-batch-single-ops due to atomic compatibility.
-            return new HTTPClient3(
-                shandler: this, 
-                decoder: decoder, 
-                encoder: encoder,
-                handlers: handlers
-            );
-        }
     }
 
     struct ProgramConfig
@@ -509,8 +439,30 @@ namespace MDACS.Database
                 universal_records_url: cfg.universal_records_url
             );
 
-            var server = new HTTPServer<ServerHandler>(handler, cfg.ssl_cert_path, cfg.ssl_cert_pass);
-            server.Start(cfg.port).Wait();
+            //var server = new HTTPServer<ServerHandler>(handler, cfg.ssl_cert_path, cfg.ssl_cert_pass);
+
+            var handlers = new Dictionary<String, SimpleServer<ServerHandler>.SimpleHTTPHandler>();
+
+            handlers.Add("/upload", HandleUpload.Action);
+            handlers.Add("/device-config", HandleDeviceConfig.Action);
+            handlers.Add("/commit_batch_single_ops", HandleBatchSingleOps.Action);
+            handlers.Add("/download", HandleDownload.Action);
+            handlers.Add("/enumerate-configurations", HandleEnumerateConfigurations.Action);
+            handlers.Add("/data", HandleData.Action);
+            handlers.Add("/commitset", HandleCommitSet.Action);
+            handlers.Add("/commit-configuration", HandleCommitConfiguration.Action);
+            handlers.Add("/delete", HandleDelete.Action);
+            handlers.Add("/spaceinfo", HandleSpaceInfo.Action);
+
+            var server = SimpleServer<ServerHandler>.Create(
+                handler,
+                handlers,
+                cfg.port,
+                cfg.ssl_cert_path,
+                cfg.ssl_cert_pass
+            );
+
+            server.Start();
 
             // Please do not let me forget this convulted retarded sequence to get from PEM to PFX with the private key.
             // openssl crl2pkcs7 -nocrl -inkey privkey.pem -certfile fullchain.pem -out test.p7b

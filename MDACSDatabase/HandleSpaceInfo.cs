@@ -8,7 +8,6 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
-using static MDACS.Server.HTTPClient2;
 
 namespace MDACS.Database
 {
@@ -26,7 +25,7 @@ namespace MDACS.Database
         /// <param name="body"></param>
         /// <param name="encoder"></param>
         /// <returns></returns>
-        public static async Task Action(ServerHandler shandler, HTTPRequest request, Stream body, ProxyHTTPEncoder encoder)
+        public static async Task<Task> Action(ServerHandler shandler, HTTPRequest request, Stream body, IProxyHTTPEncoder encoder)
         {
             var auth_resp = await Helpers.ReadMessageFromStreamAndAuthenticate(shandler, 1024 * 16, body);
 
@@ -45,6 +44,8 @@ namespace MDACS.Database
 
             await encoder.WriteQuickHeader(200, "OK");
             await encoder.BodyWriteSingleChunk(JsonConvert.SerializeObject(resp));
+
+            return Task.CompletedTask;
         }
     }
 }
