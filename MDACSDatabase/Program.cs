@@ -235,20 +235,28 @@ namespace MDACS.Database
 
                 var colon_ndx = line.IndexOf(':');
 
-                var hash = line.Substring(0, colon_ndx);
-                var meta = line.Substring(colon_ndx + 1).TrimEnd();
-
-                var correct_hash = BitConverter.ToString(
-                    hasher.ComputeHash(Encoding.UTF8.GetBytes(meta))
-                ).Replace("-", "").ToLower();
-
-                if (hash != correct_hash)
+                Item metaitem;
+                try
                 {
-                    mj.Dispose();
-                    throw new JournalHashException();
-                }
+                    var hash = line.Substring(0, colon_ndx);
+                    var meta = line.Substring(colon_ndx + 1).TrimEnd();
 
-                var metaitem = Item.Deserialize(meta);
+                    var correct_hash = BitConverter.ToString(
+                        hasher.ComputeHash(Encoding.UTF8.GetBytes(meta))
+                    ).Replace("-", "").ToLower();
+
+                    if (hash != correct_hash)
+                    {
+                        //mj.Dispose();
+                        throw new JournalHashException();
+                    }
+
+                    metaitem = Item.Deserialize(meta);
+                } catch (Exception ex)
+                {
+                    Console.WriteLine(ex.ToString());
+                    continue;
+                }
 
                 if (items.ContainsKey(metaitem.security_id))
                 {
