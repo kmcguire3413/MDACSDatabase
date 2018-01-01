@@ -265,9 +265,9 @@ namespace MDACS.Database
                 // exists to break the encryption used. This is useful if in the future it is needed to learn
                 // the identity of data that was referenced in the universal records system. Through acquisition
                 // and usage of the private key one can learn this information.
-                uuid_extension_data = $"v1:{extension_data}",
+                uuid_extension_data = $"local:{extension_data}",
                 data_hash_sha512 = Convert.ToBase64String(fhash_sha512),
-                signature = shandler.SignString($"{shandler.manager_uuid}##{fhash_sha512}"),
+                signature = shandler.SignString($"{shandler.manager_uuid}#{uuid_extension_data}#{fhash_sha512}"),
             };
 
             await shandler.WriteItemToJournal(item);

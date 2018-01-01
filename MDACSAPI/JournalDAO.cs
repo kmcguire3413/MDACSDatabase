@@ -12,7 +12,6 @@ namespace MDACS.Systems
     public class JournalDAO<ItemType>
     {
         public string path { get; }
-        public List<ItemType> items;
 
         public JournalDAO(string path)
         {
@@ -73,6 +72,8 @@ namespace MDACS.Systems
 
                 yield return metaitem;
             }
+
+            mj.Dispose();
         }
 
         public async Task<bool> WriteItemToJournal(string meta)

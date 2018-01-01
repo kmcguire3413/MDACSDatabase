@@ -259,17 +259,17 @@ namespace MDACS.Database
                 }
             }
 
-            if (manager_uuid == null)
+            if (universal_records_key_path != null)
             {
-                manager_uuid = new System.Guid().ToString();
+                var x509 = new X509Certificate2(universal_records_key_path, universal_records_key_pass);
 
-                var entry = new JObject();
+                this.private_signature_key = (RSA)x509.PrivateKey;
 
-                if (universal_records_key_path != null)
+                if (manager_uuid == null)
                 {
-                    var x509 = new X509Certificate2(universal_records_key_path, universal_records_key_pass);
+                    manager_uuid = new System.Guid().ToString();
 
-                    this.private_signature_key = x509.PrivateKey as RSA;
+                    var entry = new JObject();
 
                     entry["directive"] = "uuid";
                     entry["uuid"] = manager_uuid;
@@ -285,7 +285,6 @@ namespace MDACS.Database
                     }
                 }
             }
-
             Console.WriteLine("Done reading journal into memory.");
 
             mj.Dispose();

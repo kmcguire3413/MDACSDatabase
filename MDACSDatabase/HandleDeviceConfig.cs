@@ -29,7 +29,7 @@ namespace MDACS.Database
             int ndx = 0;
             int cnt;
 
-            while ((cnt = body.Read(buf, 0, buf.Length - ndx)) > 0) {
+            while ((cnt = await body.ReadAsync(buf, 0, buf.Length - ndx)) > 0) {
                 ndx += cnt;
             }
 
