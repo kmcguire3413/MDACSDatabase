@@ -286,6 +286,8 @@ namespace MDACS.Database
             item.state = "";
             item.manager_uuid = shandler.manager_uuid;
             item.data_hash_sha512 = Convert.ToBase64String(fhash_sha512);
+             
+            item.duration = MDACS.Database.MediaTools.MP4Info.GetDuration(item.fqpath);
 
             await shandler.WriteItemToJournal(item);
 

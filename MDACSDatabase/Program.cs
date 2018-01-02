@@ -231,6 +231,18 @@ namespace MDACS.Database
                     continue;
                 }
 
+                if (metaitem.fqpath != null && metaitem.fqpath.Length > 0 && metaitem.duration < 1.0)
+                {
+                    if (File.Exists(metaitem.fqpath))
+                    {
+                        var dur = MDACS.Database.MediaTools.MP4Info.GetDuration(metaitem.fqpath);
+
+                        Console.WriteLine($"{metaitem.fqpath} {dur}");
+
+                        metaitem.duration = dur;
+                    }
+                }
+
                 if (items.ContainsKey(metaitem.security_id))
                 {
                     // Overwrite existing entries.
@@ -504,6 +516,7 @@ namespace MDACS.Database
             handlers.Add("/commit-configuration", HandleCommitConfiguration.Action);
             handlers.Add("/delete", HandleDelete.Action);
             handlers.Add("/spaceinfo", HandleSpaceInfo.Action);
+            handlers.Add("/version", HandleVersion.Action);
 
             var server = SimpleServer<ServerHandler>.Create(
                 handler,

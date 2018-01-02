@@ -1,4 +1,5 @@
-﻿using MDACS.Server;
+﻿using MDACS.API.Requests;
+using MDACS.Server;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -10,12 +11,6 @@ namespace MDACS.Database
 {
     internal static class HandleCommitConfiguration
     {
-        public class HandleCommitConfigurationRequest
-        {
-            public String deviceid;
-            public String config_data;
-        }
-
         public static async Task<Task> Action(ServerHandler shandler, HTTPRequest request, Stream body, IProxyHTTPEncoder encoder)
         {
             var auth = await Helpers.ReadMessageFromStreamAndAuthenticate(shandler, 1024 * 16, body);
@@ -30,7 +25,7 @@ namespace MDACS.Database
                 throw new UnauthorizedException();
             }
 
-            var req = JsonConvert.DeserializeObject<HandleCommitConfigurationRequest>(auth.payload);
+            var req = JsonConvert.DeserializeObject<CommitConfigurationRequest>(auth.payload);
 
             var fp = File.OpenWrite(
                 Path.Combine(shandler.config_path, String.Format("config_{0}", req.deviceid))
