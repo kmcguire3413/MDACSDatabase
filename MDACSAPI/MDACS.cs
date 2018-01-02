@@ -762,7 +762,7 @@ namespace MDACS.API
             public string user;
             public string hash;
             public bool admin;
-            public string userfiler;
+            public string userfilter;
             public bool can_delete;
         }
 

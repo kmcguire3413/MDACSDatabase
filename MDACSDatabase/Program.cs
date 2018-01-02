@@ -134,12 +134,17 @@ namespace MDACS.Database
 
         public static bool CanUserModifyItem(User user, Item item)
         {
-            if (user.admin)
+            if (user == null || item == null || item.userstr == null)
+            {
+                return false;
+            }
+
+            if (user.admin || user.userfilter == null)
             {
                 return true;
             }
 
-            if (item.userstr.IndexOf(user.userfiler) == 0)
+            if (item.userstr.IndexOf(user.userfilter) == 0)
             {
                 return true;
             }
@@ -332,6 +337,11 @@ namespace MDACS.Database
 
         public async Task<bool> WriteItemToJournal(string meta)
         {
+            // TODO: add a lock here.. its not the end of the world if two writes intertwine
+            //       but it would help eliminate a point of corruption.. no data is lost but
+            //       the video might just not show up
+            // BUG: see above
+
             using (var mj = File.Open(this.metajournal_path, FileMode.Append))
             {
                 //var meta = Item.Serialize(item);
@@ -461,7 +471,15 @@ namespace MDACS.Database
                 cfg.ssl_cert_pass
             );
 
-            server.Start();
+            var a = new Thread(() =>
+            {
+                server.Wait();
+            });
+
+
+            a.Start();
+            a.Join();
+
 
             // Please do not let me forget this convulted retarded sequence to get from PEM to PFX with the private key.
             // openssl crl2pkcs7 -nocrl -inkey privkey.pem -certfile fullchain.pem -out test.p7b
