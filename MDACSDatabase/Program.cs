@@ -16,7 +16,6 @@ using System.Threading;
 using System.Net.Security;
 using System.Security.Cryptography;
 using MDACS.Server;
-using static MDACS.Logger;
 using static MDACS.API.Database;
 using Newtonsoft.Json.Linq;
 using MDACSAPI;
@@ -188,6 +187,8 @@ namespace MDACS.Database
 
             while (!mj.EndOfStream)
             {
+                Item metaitem;
+
                 line_no++;
 
                 var line = mj.ReadLine();
@@ -195,6 +196,11 @@ namespace MDACS.Database
                 var colon_ndx = line.IndexOf(':');
 
                 if (colon_ndx < 0)
+                {
+                    continue;
+                }
+
+                try
                 {
                     var hash = line.Substring(0, colon_ndx);
                     var meta = line.Substring(colon_ndx + 1).TrimEnd();
@@ -206,11 +212,12 @@ namespace MDACS.Database
                     if (hash != correct_hash)
                     {
                         //mj.Dispose();
-                        throw new JournalHashException();
+                        continue;
                     }
 
                     metaitem = Item.Deserialize(meta);
-                } catch (Exception ex)
+                }
+                catch (Exception ex)
                 {
                     Console.WriteLine(ex.ToString());
                     continue;
