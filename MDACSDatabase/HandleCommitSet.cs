@@ -1,4 +1,5 @@
 ﻿using MDACS.Server;
+using MDACSAPI;
 using Newtonsoft.Json;
 using System;
 using System.IO;
@@ -36,18 +37,29 @@ namespace MDACS.Database
 
             Item item;
 
+#if DEBUG
+            Logger.WriteDebugString($"sreq.security_id={sreq.security_id}");
+#endif
+
             try
             {
                 if (!shandler.items.ContainsKey(sreq.security_id))
                 {
-                    throw new InvalidArgumentException();
+                    await encoder.WriteQuickHeader(404, "Not Found");
+                    await encoder.BodyWriteSingleChunk("");
+                    return Task.CompletedTask;
                 }
 
                 item = shandler.items[sreq.security_id];
             }
             catch (Exception ex)
             {
-                throw new ProgramException("Unidentified problem.", ex);
+#if DEBUG
+                Logger.WriteDebugString($"Exception on getting item was:\n{ex}");
+#endif
+                await encoder.WriteQuickHeader(500, "Error");
+                await encoder.BodyWriteSingleChunk("");
+                return Task.CompletedTask;
             }
             finally
             {
@@ -56,7 +68,12 @@ namespace MDACS.Database
 
             if (!Helpers.CanUserModifyItem(auth_resp.user, item))
             {
-                throw new UnauthorizedException();
+#if DEBUG
+                Logger.WriteDebugString($"User was not authorized to write to item.");
+#endif
+                await encoder.WriteQuickHeader(403, "Not Authorized");
+                await encoder.BodyWriteSingleChunk("");
+                return Task.CompletedTask;
             }
 
             try
@@ -66,19 +83,31 @@ namespace MDACS.Database
                     // Reflection simplified coding time at the expense of performance.
                     var field = item.GetType().GetField(pair.Key);
                     field.SetValue(item, pair.Value.ToObject(field.FieldType));
-                    Logger.LogLine(String.Format("Set property {0} for item to {1}.", pair.Key, pair.Value));
+#if DEBUG
+                    Logger.WriteDebugString($"Set field {field} of {sreq.meta} to {pair.Value.ToString()}.");
+#endif                    
                 }
 
                 shandler.items[sreq.security_id] = item;
 
                 if (!await shandler.WriteItemToJournal(item))
                 {
-                    throw new ProgramException("Unable to write to the journal.");
+#if DEBUG
+                    Logger.WriteDebugString($"Error happened when writing to the journal for a commit set operation.");
+#endif
+                    await encoder.WriteQuickHeader(500, "Error");
+                    await encoder.BodyWriteSingleChunk("");
+                    return Task.CompletedTask;
                 }
             }
             catch (Exception ex)
             {
-                throw new ProgramException("Caught inner exception when setting item with commit set command.", ex);
+#if DEBUG
+                Logger.WriteDebugString($"Error happened when writing to journal or setting item fields during commit set operation.");
+#endif
+                await encoder.WriteQuickHeader(500, "Error");
+                await encoder.BodyWriteSingleChunk("");
+                return Task.CompletedTask;
             }
 
             var resp = new MDACS.API.Responses.CommitSetResponse();
@@ -87,7 +116,6 @@ namespace MDACS.Database
 
             await encoder.WriteQuickHeader(200, "OK");
             await encoder.BodyWriteSingleChunk(JsonConvert.SerializeObject(resp));
-
             return Task.CompletedTask;
         }
     }

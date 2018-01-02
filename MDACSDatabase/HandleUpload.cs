@@ -1,5 +1,6 @@
 ﻿using MDACS.Database;
 using MDACS.Server;
+using MDACSAPI;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
@@ -158,12 +159,17 @@ namespace MDACS.Database
 
             var fhash_sha512 = new byte[512 / 8];
 
+            FileStream fp = null;
+
             try
             {
-                var fp = File.Open(temp_data_node_path, FileMode.Create);
+#if DEBUG
+                Logger.WriteDebugString($"Opening {temp_data_node_path} as temporary output for upload.");
+#endif
+                fp = File.Open(temp_data_node_path, FileMode.Create);
                 await fp.WriteAsync(buf, 0, bufndx);
 
-                long getting_pissed_off = 0;
+                long total = 0;
 
                 hasher = SHA512Managed.Create();
 
@@ -178,29 +184,57 @@ namespace MDACS.Database
                         break;
                     }
 
-                    hasher.TransformBlock(buf, 0, cnt, fhash_sha512, 0);
+                    Console.WriteLine($"buf={buf} _cnt={_cnt}");
 
-                    getting_pissed_off += _cnt;
+                    // https://stackoverflow.com/questions/20634827/how-to-compute-hash-of-a-large-file-chunk
+                    hasher.TransformBlock(buf, 0, _cnt, null, 0);
+
+                    total += _cnt;
                     await fp.WriteAsync(buf, 0, _cnt);
                 }
 
-                Console.WriteLine($"getting_pissed_off={getting_pissed_off}");
+                hasher.TransformFinalBlock(buf, 0, 0);
+
+                fhash_sha512 = hasher.Hash;
+
+#if DEBUG
+                Logger.WriteDebugString($"Wrote {total} bytes to {temp_data_node_path} as temporary output for upload.");
+#endif
+
                 await body.CopyToAsync(fp);
                 await fp.FlushAsync();
+
                 fp.Dispose();
             }
             catch (Exception ex)
             {
+                if (fp != null)
+                {
+                    fp.Dispose();
+                }
+
+#if DEBUG
+                Logger.WriteDebugString($"Exception on {temp_data_node_path} with:\n{ex}");
+#endif
+
                 File.Delete(temp_data_node_path);
-                throw new ProgramException("Problem during write to file from body stream.", ex);
+
+                await encoder.WriteQuickHeader(500, "Problem");
+                await encoder.BodyWriteSingleChunk("Problem during write to file from body stream.");
+                return Task.CompletedTask;
             }
 
-            Console.WriteLine("Upload done.");
+#if DEBUG
+            Logger.WriteDebugString($"Upload for {temp_data_node_path} is done.");
+#endif
 
             if (!await WaitForFileSizeMatch(temp_data_node_path, (long)hdr.datasize, 3))
             {
                 File.Delete(temp_data_node_path);
-                throw new ProgramException("The upload byte length of the destination never reached the intended stream size.");
+
+                await encoder.WriteQuickHeader(504, "Timeout");
+                await encoder.BodyWriteSingleChunk("The upload byte length of the destination never reached the intended stream size.");
+                return Task.CompletedTask;
             }
 
             try
@@ -218,12 +252,17 @@ namespace MDACS.Database
                 File.Delete(temp_data_node_path);
                 // Move the original back to the original filename.
                 await CheckedFileMoveAsync($"{data_node_path}.moved.{DateTime.Now.ToFileTime().ToString()}", data_node_path);
-                throw new ProgramException("Problem when executing move from temp file to actual destination.", ex);
+
+                await encoder.WriteQuickHeader(500, "Problem");
+                await encoder.BodyWriteSingleChunk("Unable to do a CheckFileMoveAsync.");
+                return Task.CompletedTask;
             }
 
             if (!await WaitForFileSizeMatch(data_node_path, (long)hdr.datasize, 3))
             {
-                throw new ProgramException("The upload byte length of the destination never reached the intended stream size, after moving from the temp file.");
+                await encoder.WriteQuickHeader(504, "Timeout");
+                await encoder.BodyWriteSingleChunk("Timeout waiting for size change.");
+                return Task.CompletedTask;
             }
 
             Item item = new Item();
@@ -247,31 +286,8 @@ namespace MDACS.Database
             item.state = "";
             item.manager_uuid = shandler.manager_uuid;
             item.data_hash_sha512 = Convert.ToBase64String(fhash_sha512);
-            //item.uploaded_by_user = info.user.user;
-
-            // In order to have a successful upload we need to publish the item's data hash and information
-            // so that global tracking can happen for where the data is located. This simplifies management
-            // of location data for each item as it is replicated or moved.
-
-            /*
-            var extension_data = shandler.EncryptString(JsonConvert.SerializeObject(item));
-
-            var uri = new UniversalRecordItem()
-            {
-                uuid = shandler.manager_uuid,
-                // Securely packaged in the universal item record is the meta-data at this point in time. This
-                // meta-data is only recoverable with the private key. However, the private key is never shared
-                // with the universal record system, thus, leaving the data safe until the day that technology
-                // exists to break the encryption used. This is useful if in the future it is needed to learn
-                // the identity of data that was referenced in the universal records system. Through acquisition
-                // and usage of the private key one can learn this information.
-                uuid_extension_data = $"local:{extension_data}",
-                data_hash_sha512 = Convert.ToBase64String(fhash_sha512),
-                signature = shandler.SignString($"{shandler.manager_uuid}#{uuid_extension_data}#{fhash_sha512}"),
-            };
 
             await shandler.WriteItemToJournal(item);
-            */
 
             var uresponse = new MDACS.API.Responses.UploadResponse();
 
@@ -283,7 +299,6 @@ namespace MDACS.Database
 
             await encoder.WriteQuickHeader(200, "OK");
             await encoder.BodyWriteSingleChunk(JsonConvert.SerializeObject(uresponse));
-
             return Task.CompletedTask;
         }
     }

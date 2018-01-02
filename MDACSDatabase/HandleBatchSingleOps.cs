@@ -1,4 +1,7 @@
-﻿using MDACS.Server;
+﻿using MDACS.API.Requests;
+using MDACS.API.Responses;
+using MDACS.Server;
+using MDACSAPI;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -10,17 +13,6 @@ namespace MDACS.Database
 {
     internal static class HandleBatchSingleOps
     {
-        public class HandleBatchSingleOpsResponse
-        {
-            public bool success;
-            public String[][] failed;
-        }
-
-        public class HandleBatchSingleOpsRequest
-        {
-            public String[][] ops;
-        }
-
         public static async Task<Task> Action(ServerHandler shandler, HTTPRequest request, Stream body, IProxyHTTPEncoder encoder)
         {
             var auth = await Helpers.ReadMessageFromStreamAndAuthenticate(shandler, 1024 * 16, body);
@@ -36,20 +28,15 @@ namespace MDACS.Database
 
             var req = JsonConvert.DeserializeObject<HandleBatchSingleOpsRequest>(auth.payload);
 
-            List<String[]> failed = new List<String[]>();
+            var failed = new List<BatchSingleOp>();
 
             var tasks = new List<Task<bool>>();
 
             foreach (var op in req.ops)
             {
-                if (op.Length < 3)
-                {
-                    continue;
-                }
-
-                var sid = op[0];
-                var key = op[1];
-                var val = op[2];
+                var sid = op.sid;
+                var field_name = op.field_name;
+                var value = op.value;
 
                 lock (shandler.items)
                 {
@@ -57,20 +44,31 @@ namespace MDACS.Database
                     {
                         try
                         {
-                            // TODO: make the type variant so the caller can specifiy things other 
-                            //       than string; will need to interpret the entire structure as a
-                            //       JSON object to do it easily
                             var tmp = shandler.items[sid];
-                            var field = tmp.GetType().GetField(key);
-                            field.SetValue(shandler.items[sid], val);
-                            shandler.items[sid] = tmp;
-
+                            var field = tmp.GetType().GetField(field_name);
+                            field.SetValue(tmp, value.ToObject(field.FieldType));
                             tasks.Add(shandler.WriteItemToJournal(tmp));
                         }
                         catch (Exception ex)
                         {
-                            failed.Add(new String[] { sid, key, val, ex.ToString() });
+#if DEBUG
+                            Logger.WriteDebugString($"Failed during batch single operation. The SID was {sid}. The field name was {field_name}. The value was {value}. The error was:\n{ex}");
+#endif
+                            failed.Add(new BatchSingleOp()
+                            {
+                                field_name = field_name,
+                                sid = sid,
+                                value = value,
+                            });
                         }
+                    } else
+                    {
+                        failed.Add(new BatchSingleOp()
+                        {
+                            field_name = field_name,
+                            sid = sid,
+                            value = value,
+                        });
                     }
                 }
             }

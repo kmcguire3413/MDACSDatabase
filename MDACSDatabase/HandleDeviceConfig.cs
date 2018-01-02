@@ -11,13 +11,13 @@ namespace MDACS.Database
 {
     static class HandleDeviceConfig
     {
-        class HandleDeviceConfigRequest
+        public class HandleDeviceConfigRequest
         {
             public String deviceid;
             public String current_config_data;
         }
 
-        struct HandleDeviceConfigResponse
+        public class HandleDeviceConfigResponse
         {
             public bool success;
             public String config_data;
@@ -65,10 +65,6 @@ namespace MDACS.Database
 
             await fp.ReadAsync(config_bytes_utf8, 0, config_bytes_utf8.Length);
             fp.Dispose();
-
-            HandleDeviceConfigResponse resp;
-
-            resp.success = true;
                 
             var config_data = Encoding.UTF8.GetString(config_bytes_utf8);
 
@@ -81,6 +77,9 @@ namespace MDACS.Database
 
             tmp["config_data"] = tmp["config_data"].Value<String>().Replace("\n", "\r\n");
 
+            var resp = new HandleDeviceConfigResponse();
+
+            resp.success = true;
             resp.config_data = JsonConvert.SerializeObject(tmp);
 
             await encoder.WriteQuickHeader(200, "OK");

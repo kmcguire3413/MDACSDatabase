@@ -12,6 +12,18 @@ namespace MDACS.API
 {
     namespace Requests
     {
+        public class BatchSingleOp
+        {
+            public string sid;
+            public string field_name;
+            public JToken value;
+        }
+
+        public class HandleBatchSingleOpsRequest
+        {
+            public BatchSingleOp[] ops;
+        }
+
         public class UploadHeader
         {
             public string datestr;
@@ -36,6 +48,12 @@ namespace MDACS.API
 
     namespace Responses
     {
+        public class HandleBatchSingleOpsResponse
+        {
+            public bool success;
+            public Requests.BatchSingleOp[] failed;
+        }
+
         public class UniversalPullInfoResponse
         {
             public bool success;
@@ -57,20 +75,20 @@ namespace MDACS.API
             public bool success;
         }
 
-        public struct UploadResponse
+        public class UploadResponse
         {
             public bool success;
             public string security_id;
             public string fqpath;
         }
 
-        public struct DataResponse
+        public class DataResponse
         {
             public Database.Alert[] alerts;
             public Database.Item[] data;
         }
 
-        struct AuthResponse
+        public class AuthResponse
         {
             public string challenge;
         }
@@ -112,6 +130,28 @@ namespace MDACS.API
                 password,
                 sid,
                 meta
+            );
+        }
+
+        public async Task<Responses.HandleBatchSingleOpsResponse> BatchSingleOps(Requests.BatchSingleOp[] ops)
+        {
+            return await Database.BatchSingleOps(
+                auth_url,
+                db_url,
+                username,
+                password,
+                ops
+            );
+        }
+
+        public async Task<Responses.DataResponse> Data()
+        {
+            return await Database.GetDataAsync(
+                auth_url,
+                db_url,
+                username,
+                password,
+                null
             );
         }
 
@@ -416,7 +456,7 @@ namespace MDACS.API
             return reader.ReadToEnd();
         }
 
-        public struct Alert
+        public class Alert
         {
 
         }
@@ -479,6 +519,31 @@ namespace MDACS.API
             );
         }
 
+        public static async Task<Responses.HandleBatchSingleOpsResponse> BatchSingleOps(
+            string auth_url,
+            string db_url,
+            string username,
+            string password,
+            Requests.BatchSingleOp[] ops)
+        {
+            var req = new Requests.HandleBatchSingleOpsRequest()
+            {
+                ops = ops
+            };
+
+            var stream = await ReadStreamTransactionAsync(
+                auth_url,
+                $"{db_url}/commit_batch_single_ops",
+                username,
+                password,
+                JsonConvert.SerializeObject(req)
+            );
+
+            var bs = new StreamReader(stream, Encoding.UTF8, false);
+
+            return JsonConvert.DeserializeObject<Responses.HandleBatchSingleOpsResponse>(await bs.ReadToEndAsync());
+        }
+
         public static async Task<Responses.CommitSetResponse> CommitSetAsync(
             string auth_url, 
             string db_url, 
@@ -517,13 +582,69 @@ namespace MDACS.API
             string timestr,
             string userstr,
             Stream data
+        ) {
+            var header = new Requests.UploadHeader();
+
+            header.datasize = (ulong)datasize;
+            header.datatype = datatype;
+            header.datestr = datestr;
+            header.devicestr = devicestr;
+            header.timestr = timestr;
+            header.userstr = userstr;
+
+            var payload = JsonConvert.SerializeObject(header);
+
+            var packet = await API.Auth.BuildAuthWithPayloadAsync(
+                auth_url,
+                username,
+                password,
+                payload
+            );
+            var packet_bytes = Encoding.UTF8.GetBytes($"{packet}\n");
+
+            var wr = WebRequest.Create($"{db_url}/upload");
+
+            wr.ContentType = "text/json";
+            wr.Method = "POST";
+
+            ((HttpWebRequest)wr).AllowWriteStreamBuffering = false;
+            ((HttpWebRequest)wr).SendChunked = true;
+            // When sending a very long post this might need to be turned off
+            // since it can cause an abrupt canceling of the request.
+            ((HttpWebRequest)wr).KeepAlive = false;
+
+            var reqstream = await wr.GetRequestStreamAsync();
+
+            await reqstream.WriteAsync(packet_bytes, 0, packet_bytes.Length);
+
+            await data.CopyToAsync(reqstream);
+
+            reqstream.Close();
+
+            var chunk = new byte[1024];
+
+            var resp = await wr.GetResponseAsync();
+            var rstream = resp.GetResponseStream();
+            var resp_length = await rstream.ReadAsync(chunk, 0, chunk.Length);
+            var resp_text = Encoding.UTF8.GetString(chunk, 0, resp_length);
+
+            return JsonConvert.DeserializeObject<Responses.UploadResponse>(resp_text);
+        }
+
+        public static async Task<Responses.UploadResponse> UploadAsync(
+            string auth_url,
+            string db_url,
+            string username,
+            string password,
+            long datasize,
+            string datatype,
+            string datestr,
+            string devicestr,
+            string timestr,
+            string userstr,
+            IEnumerable<byte[]> callback
         )
         {
-            if (data.Length - data.Position != (long)datasize)
-            {
-                throw new ArgumentException("The data stream must be exactly the specified length from its current position as `datasize`.");
-            }
-
             var header = new Requests.UploadHeader();
 
             header.datasize = (ulong)datasize;
@@ -558,11 +679,14 @@ namespace MDACS.API
 
             await reqstream.WriteAsync(packet_bytes, 0, packet_bytes.Length);
 
-            var chunk = new byte[1024];
-
-            await data.CopyToAsync(reqstream);
+            foreach (var stream_chunk in callback)
+            {
+                await reqstream.WriteAsync(stream_chunk, 0, stream_chunk.Length);
+            }
 
             reqstream.Close();
+
+            var chunk = new byte[1024];
 
             var resp = await wr.GetResponseAsync();
             var rstream = resp.GetResponseStream();
@@ -646,14 +770,14 @@ namespace MDACS.API
 
     public class Auth
     {
-        struct AuthCompletePacketInner
+        class AuthCompletePacketInner
         {
             public string challenge;
             public string chash;
             public bool payload;
         }
 
-        struct AuthCompletePacket
+        class AuthCompletePacket
         {
             public AuthCompletePacketInner auth;
             public string payload;
@@ -866,7 +990,9 @@ namespace MDACS.API
                 ))
             );
 
-            AuthCompletePacket packet;
+            var packet = new AuthCompletePacket();
+            packet.auth = new AuthCompletePacketInner();
+
             packet.auth.challenge = challenge;
             packet.auth.chash = ByteArrayToHexString(complete_hash);
             packet.auth.payload = true;

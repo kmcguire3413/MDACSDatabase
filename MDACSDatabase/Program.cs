@@ -19,37 +19,10 @@ using MDACS.Server;
 using static MDACS.Logger;
 using static MDACS.API.Database;
 using Newtonsoft.Json.Linq;
+using MDACSAPI;
 
 namespace MDACS.Database
 {
-    public class Item
-    {
-        public String security_id;
-        public String node;
-        public double duration;
-        public double metatime;
-        public String fqpath;
-        public String userstr;
-        public String timestr;
-        public String datestr;
-        public String devicestr;
-        public String datatype;
-        public ulong datasize;
-        public String note;
-        public String state;
-        public String[][] versions;
-
-        public static String Serialize(Item item)
-        {
-            return JsonConvert.SerializeObject(item);
-        }
-
-        public static Item Deserialize(String input)
-        {
-            return JsonConvert.DeserializeObject<Item>(input);
-        }
-    }
-
     /// <summary>
     /// A type of exception that all exceptions thrown by this program must derive from. If any exception caught must only be rethrown
     /// if it is embedded as the `caught_exception` property of this class. This can be done by calling the appropriate constructor.
@@ -94,7 +67,7 @@ namespace MDACS.Database
 
     internal class Helpers
     {
-        public static async Task<AuthCheckResponse> ReadMessageFromStreamAndAuthenticate(ServerHandler shandler, int max_size, Stream input_stream)
+        public static async Task<API.Responses.AuthCheckResponse> ReadMessageFromStreamAndAuthenticate(ServerHandler shandler, int max_size, Stream input_stream)
         {
             var buf = new byte[1024 * 32];
             int pos = 0;
@@ -174,6 +147,9 @@ namespace MDACS.Database
         public string manager_uuid { get; }
         private RSA private_signature_key;
 
+        private long used_space;
+        private long max_storage_space;
+
         public ServerHandler(
             string metajournal_path,
             string data_path,
@@ -190,8 +166,17 @@ namespace MDACS.Database
             this.config_path = config_path;
             this.auth_url = auth_url;
             this.metajournal_path = metajournal_path;
+            this.used_space = 0;
+            this.max_storage_space = max_storage_space;
+
+            this.journal_semaphore = new SemaphoreSlim(1, 1);
 
             items = new Dictionary<string, Item>();
+
+            if (!File.Exists(metajournal_path))
+            {
+                File.Create(metajournal_path).Dispose();
+            }
 
             var mj = File.OpenText(metajournal_path);
 
@@ -335,7 +320,9 @@ namespace MDACS.Database
             return this.used_space;
         }
 
-        public async Task<bool> WriteItemToJournal(string meta)
+        private SemaphoreSlim journal_semaphore;
+
+        public async Task<bool> WriteItemToJournalUnsafe(string meta)
         {
             // TODO: add a lock here.. its not the end of the world if two writes intertwine
             //       but it would help eliminate a point of corruption.. no data is lost but
@@ -361,14 +348,40 @@ namespace MDACS.Database
             return true;
         }
 
+        public async Task<bool> WriteItemToJournalAssured(string meta)
+        {
+            while (true)
+            {
+                try
+                {
+                    // Ensure only one write at a time.
+                    await journal_semaphore.WaitAsync();
+
+                    if (await WriteItemToJournalUnsafe(meta))
+                    {
+                        return true;
+                    }
+                }
+                catch (IOException ex)
+                {
+                    Logger.WriteCriticalString($"WriteItemToJournalAssured had an I/O exception as follows:\n{ex}\nFor:\n{meta}");
+                } finally
+                {
+                    journal_semaphore.Release();
+                }
+
+                await Task.Delay(1000);
+            }
+        }
+
         public async Task<bool> WriteItemToJournal(JObject item)
         {
-            return await WriteItemToJournal(JsonConvert.SerializeObject(item));
+            return await WriteItemToJournalAssured(JsonConvert.SerializeObject(item));
         }
 
         public async Task<bool> WriteItemToJournal(Item item) {
 
-            if (!await WriteItemToJournal(JsonConvert.SerializeObject(item)))
+            if (!await WriteItemToJournalAssured(JsonConvert.SerializeObject(item)))
             {
                 return false;
             }
@@ -386,7 +399,7 @@ namespace MDACS.Database
         }
     }
 
-    struct ProgramConfig
+    public class ProgramConfig
     {
         public string metajournal_path;
         public string data_path;
@@ -402,6 +415,25 @@ namespace MDACS.Database
 
     public class Program
     {
+        public static event Func<JObject, bool> logger_output_base;
+
+        public static void LoggerOutput(JObject item)
+        {
+            // Allow our default logger output to be hooked _and_ overriden if desired.
+            if (logger_output_base != null && logger_output_base(item) == true)
+            {
+                return;
+            }
+
+            if (item["type"].ToObject<string>()?.Equals("string") == true)
+            {
+                var msg = item["value"].ToObject<string>();
+                var source = item["stack"].ToObject<string[]>();
+
+                Console.WriteLine($"{source[0]}: {msg}");
+            }
+        }
+
         public static void Main(string[] args)
         {
             if (args.Length < 1)
@@ -409,6 +441,9 @@ namespace MDACS.Database
                 Console.WriteLine("Provide path or file that contains the JSON configuration. If file does not exit then default one will be created.");
                 return;
             }
+
+            // Attach a handler for logger events.
+            Logger.handler_event += LoggerOutput;
 
             if (!File.Exists(args[0]))
             {
