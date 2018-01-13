@@ -1,4 +1,5 @@
-﻿using MDACS.Database;
+﻿using MDACS.API.Requests;
+using MDACS.Database;
 using MDACS.Server;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -33,8 +34,6 @@ namespace MDACS.Database
             {
                 throw new UnauthorizedException();
             }
-
-            var sreq = JsonConvert.DeserializeObject<DeleteRequest>(auth_resp.payload);
 
             var resp = new JObject();
 

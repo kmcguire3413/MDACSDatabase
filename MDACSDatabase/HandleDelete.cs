@@ -1,4 +1,6 @@
-﻿using MDACS.Database;
+﻿using MDACS.API.Requests;
+using MDACS.API.Responses;
+using MDACS.Database;
 using MDACS.Server;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -11,11 +13,6 @@ using System.Threading.Tasks;
 
 namespace MDACS.Database
 {
-    class DeleteRequest
-    {
-        public String sid;
-    }
-
     static class HandleDelete
     {
         /// <summary>
@@ -53,8 +50,12 @@ namespace MDACS.Database
                     File.Delete(item.fqpath);
                 } catch (Exception _)
                 {
-                    await encoder.WriteQuickHeader(200, "OK");
-                    await encoder.BodyWriteSingleChunk("{ \"success\": false }");
+                    await encoder.WriteQuickHeaderAndStringBody(
+                        500, "Error", JsonConvert.SerializeObject(new DeleteResponse()
+                        {
+                            success = false,
+                        })
+                    );
                     return Task.CompletedTask;
                 }
 
@@ -68,9 +69,12 @@ namespace MDACS.Database
                 await shandler.WriteItemToJournal(item);
             }
 
-            await encoder.WriteQuickHeader(200, "OK");
-            await encoder.BodyWriteSingleChunk("{ \"success\": true }");
-
+            await encoder.WriteQuickHeaderAndStringBody(
+                200, "Deleted", JsonConvert.SerializeObject(new DeleteResponse()
+                {
+                    success = true,
+                })
+            );
             return Task.CompletedTask;
         }
     }

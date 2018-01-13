@@ -4,6 +4,69 @@ using System.Text;
 
 namespace MDACS.API.Responses
 {
+    public class DeleteResponse
+    {
+        public bool success;
+    }
+
+    public class AuthLoginValidResponse
+    {
+        public bool success;
+        public Auth.User user;
+    }
+
+    public class AuthTokenResponse
+    {
+        public AuthToken token;
+    }
+
+    public class AuthToken
+    {
+        /// <summary>
+        /// A JSON string.
+        /// </summary>
+        public string data;
+        /// <summary>
+        /// Base64 encoded bytes representing a signature for validation.
+        /// </summary>
+        public string signature;
+    }
+
+    public class AuthTokenBasedRequest
+    {
+        /// <summary>
+        /// This data type varies with the intended route or service used.
+        /// </summary>
+        public string data;
+        /// <summary>
+        /// This follows the convention specified for AuthTokenResponse and is used
+        /// to validate, verify, and authenticate using the token the data above.
+        /// </summary>
+        public AuthToken token;
+    }
+
+    public class AuthChallengeResponse
+    {
+        public string challenge;
+    }
+
+    public class DeviceConfigResponse
+    {
+        public bool success;
+        public String config_data;
+    }
+
+    public class EnumerateConfigurationsResponse
+    {
+        public bool success;
+        public Dictionary<String, String> configs;
+    }
+
+    public class CommitConfigurationResponse
+    {
+        public bool success;
+    }
+
     public class VersionResponse
     {
         public int major;

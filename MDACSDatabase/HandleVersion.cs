@@ -13,6 +13,14 @@ using System.Threading.Tasks;
 
 namespace MDACS.Database
 {
+    class InternalVersonInfo
+    {
+        public int major;
+        public int minor;
+        public int build;
+        public int revision;
+    }
+
     static class HandleVersion
     {
         /// <summary>
@@ -25,24 +33,36 @@ namespace MDACS.Database
         /// <returns></returns>
         public static async Task<Task> Action(ServerHandler shandler, HTTPRequest request, Stream body, IProxyHTTPEncoder encoder)
         {
-            var auth_resp = await Helpers.ReadMessageFromStreamAndAuthenticate(shandler, 1024 * 16, body);
+            var buf = new byte[512];
+            int cnt;
 
-            if (!auth_resp.success)
+            do
             {
-                await encoder.WriteQuickHeader(403, "Not Allowed");
-                await encoder.BodyWriteSingleChunk("");
-                return Task.CompletedTask;
-            }
+                cnt = await body.ReadAsync(buf, 0, buf.Length);
+            } while (cnt > 0);
 
-            var ver = Assembly.GetExecutingAssembly().GetName().Version;
 
             var resp = new VersionResponse()
             {
-                major = ver.Major,
-                minor = ver.Minor,
-                build = ver.Build,
-                revision = ver.Revision,
+                major = 0,
+                minor = 0,
+                build = 0,
+                revision = 0,
             };
+
+            InternalVersonInfo ver_info;
+
+            using (var strm = Assembly.GetExecutingAssembly().GetManifestResourceStream("MDACSDatabase.buildinfo.json"))
+            {
+                var json_data = await new StreamReader(strm).ReadToEndAsync();
+
+                ver_info = JsonConvert.DeserializeObject<InternalVersonInfo>(json_data);
+            }
+
+            resp.major = ver_info.major;
+            resp.minor = ver_info.minor;
+            resp.build = ver_info.build;
+            resp.revision = ver_info.revision;
 
             await encoder.WriteQuickHeader(200, "OK");
             await encoder.BodyWriteSingleChunk(JsonConvert.SerializeObject(resp));

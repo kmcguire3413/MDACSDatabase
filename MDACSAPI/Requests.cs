@@ -5,9 +5,59 @@ using System.Text;
 
 namespace MDACS.API.Requests
 {
+    public class DeleteRequest
+    {
+        public String sid;
+    }
+
+    public class AuthUserSetRequest
+    {
+        public Auth.User user;
+    }
+
+    public class AuthUserDeleteRequest
+    {
+        public string username;
+    }
+
+    public class AuthVerifyPayloadRequest
+    {
+        /// <summary>
+        /// The payload hash.
+        /// </summary>
+        public string phash;
+        /// <summary>
+        /// The client hash or user's hash.
+        /// </summary>
+        public string chash;
+        /// <summary>
+        /// The challenge.
+        /// </summary>
+        public string challenge;
+    }
+
+    public class AuthVerifyRequest
+    {
+        /// <summary>
+        /// The challenge.
+        /// </summary>
+        public string challenge;
+        /// <summary>
+        /// The client hash or user's hash.
+        /// </summary>
+        public string hash;
+    }
+
+    public class DeviceConfigRequest
+    {
+        public String deviceid;
+        public String current_config_data;
+    }
+
     public class CommitConfigurationRequest
     {
         public string deviceid;
+        public string userid;
         public string config_data;
     }
 

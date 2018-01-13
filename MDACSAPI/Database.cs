@@ -1,4 +1,5 @@
-﻿using MDACS.API.Responses;
+﻿using MDACS.API.Requests;
+using MDACS.API.Responses;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
@@ -22,10 +23,18 @@ namespace MDACS.API
         {
             WebRequest req;
 
-            // Leave synchronous for this moment.
-            var payload_bytes = Encoding.ASCII.GetBytes(
-                await Auth.BuildAuthWithPayloadAsync(auth_url, username, password, payload)
-            );
+            byte[] payload_bytes;
+
+            if (auth_url != null)
+            {
+                payload_bytes = Encoding.UTF8.GetBytes(
+                    await Auth.BuildAuthWithPayloadAsync(auth_url, username, password, payload)
+                );
+            }
+            else
+            {
+                payload_bytes = Encoding.UTF8.GetBytes(payload);
+            }
 
             req = WebRequest.Create(db_url);
 
@@ -55,13 +64,21 @@ namespace MDACS.API
             WebResponse resp;
             Stream data;
 
-            var tsk = Auth.BuildAuthWithPayloadAsync(auth_url, username, password, payload);
+            byte[] payload_bytes;
 
-            tsk.Wait();
+            if (auth_url != null)
+            {
+                var tsk = Auth.BuildAuthWithPayloadAsync(auth_url, username, password, payload);
 
-            var payload_bytes = Encoding.ASCII.GetBytes(
-                tsk.Result
-            );
+                tsk.Wait();
+
+                payload_bytes = Encoding.UTF8.GetBytes(
+                    tsk.Result
+                );
+            } else
+            {
+                payload_bytes = Encoding.UTF8.GetBytes(payload);
+            }
 
             req = WebRequest.Create(db_url);
 
@@ -204,6 +221,79 @@ namespace MDACS.API
             var bs = new StreamReader(stream, Encoding.UTF8, false);
 
             return JsonConvert.DeserializeObject<Responses.HandleBatchSingleOpsResponse>(await bs.ReadToEndAsync());
+        }
+
+        public static async Task<Responses.CommitConfigurationResponse> CommitConfiguration(
+            string auth_url,
+            string db_url,
+            string username,
+            string password,
+            string deviceid,
+            string userid,
+            string config_data)
+        {
+            var req = new Requests.CommitConfigurationRequest()
+            {
+                deviceid = deviceid,
+                config_data = config_data,
+                userid = userid,
+            };
+
+            var stream = await ReadStreamTransactionAsync(
+                auth_url,
+                $"{db_url}/commit-configuration",
+                username,
+                password,
+                JsonConvert.SerializeObject(req)
+            );
+
+            var bs = new StreamReader(stream, Encoding.UTF8, false);
+
+            return JsonConvert.DeserializeObject<Responses.CommitConfigurationResponse>(await bs.ReadToEndAsync());
+        }
+
+        public static async Task<Responses.DeviceConfigResponse> DeviceConfig(
+            string auth_url,
+            string db_url,
+            string username,
+            string password,
+            string deviceid,
+            string current_config_data)
+        {
+            var stream = await ReadStreamTransactionAsync(
+                null,
+                $"{db_url}/device-config",
+                username,
+                password,
+                JsonConvert.SerializeObject(new DeviceConfigRequest()
+                {
+                    deviceid = deviceid,
+                    current_config_data = current_config_data,
+                })
+            );
+
+            var bs = new StreamReader(stream, Encoding.UTF8, false);
+
+            return JsonConvert.DeserializeObject<Responses.DeviceConfigResponse>(await bs.ReadToEndAsync());
+        }
+
+        public static async Task<Responses.EnumerateConfigurationsResponse> EnumerateConfigurations(
+            string auth_url,
+            string db_url,
+            string username,
+            string password)
+        {
+            var stream = await ReadStreamTransactionAsync(
+                auth_url,
+                $"{db_url}/enumerate-configurations",
+                username,
+                password,
+                ""
+            );
+
+            var bs = new StreamReader(stream, Encoding.UTF8, false);
+
+            return JsonConvert.DeserializeObject<Responses.EnumerateConfigurationsResponse>(await bs.ReadToEndAsync());
         }
 
         public static async Task<Responses.CommitSetResponse> CommitSetAsync(
@@ -396,7 +486,25 @@ namespace MDACS.API
             return JsonConvert.DeserializeObject<Responses.DataResponse>(resp_json);
         }
 
-        public static Responses.DataResponse GetData(string auth_url, string db_url, string username, string password, GetDataProgress progress_event)
+        public static async Task<bool> DeleteAsync(string auth_url, string db_url, string username, string password, string sid)
+        {
+            string payload = JsonConvert.SerializeObject(new DeleteRequest()
+            {
+                sid = sid,
+            });
+
+            var stream = await ReadStreamTransactionAsync(
+                auth_url,
+                string.Format("{0}/data", db_url),
+                username,
+                password,
+                payload
+            );
+
+            return JsonConvert.DeserializeObject<DeleteResponse>(new StreamReader(stream).ReadToEnd()).success;
+        }
+
+            public static Responses.DataResponse GetData(string auth_url, string db_url, string username, string password, GetDataProgress progress_event)
         {
             string payload = "{}";
 

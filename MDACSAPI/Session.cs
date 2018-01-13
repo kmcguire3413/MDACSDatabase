@@ -53,6 +53,28 @@ namespace MDACS.API
             );
         }
 
+        public async Task<EnumerateConfigurationsResponse> EnumerateConfigurations()
+        {
+            return await Database.EnumerateConfigurations(
+                auth_url,
+                db_url,
+                username,
+                password
+            );
+        }
+
+        public async Task<DeviceConfigResponse> DeviceConfig(string deviceid, string current_config_data)
+        {
+            return await Database.DeviceConfig(
+                auth_url,
+                db_url,
+                username,
+                password,
+                deviceid,
+                current_config_data
+            );
+        }
+
         public async Task<DataResponse> Data()
         {
             return await Database.GetDataAsync(
@@ -61,6 +83,23 @@ namespace MDACS.API
                 username,
                 password,
                 null
+            );
+        }
+
+        public async Task<CommitConfigurationResponse> CommitConfigurationAsync(
+            string deviceid,
+            string userid,
+            string config_data
+        )
+        {
+            return await Database.CommitConfiguration(
+                auth_url,
+                db_url,
+                username,
+                password,
+                deviceid,
+                userid,
+                config_data
             );
         }
 

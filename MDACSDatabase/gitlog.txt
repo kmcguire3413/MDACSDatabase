@@ -1,0 +1,340 @@
+* commit 7f4b5c5add4ec5d24b0a0aca7579a4f57a0c4d9f
+| Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| Date:   Tue Jan 2 05:12:11 2018 -0600
+| 
+|     Large set of changes.
+|     
+|     + Refactored MDACS.API project into separate files since the single source file was becoming cluttered and difficult to effectively scan through.
+|     + Added attempt to fetch MP4 duration in HandleUpload.
+|     + Added /version REST API route.
+|     + Database on journal read now attempts to fetch MP4 duration on any file that has an `fqpath` and duration of zero. This is a bandaid for this not having been implemented to begin with. Large journals and many items could make this slow so it needs to likely have a configuration switch.
+|     + Added MDACS.Database.MediaTools.MP4Info.GetDuration which attempts to find the MVHD atom in an MP4 video file and extract the duration in seconds.
+|   
+*   commit 743e298ce8ab72d57f06c1cd9eb7d06c045f9583
+|\  Merge: c21563b 5b7f215
+| | Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| | Date:   Tue Jan 2 00:20:34 2018 -0600
+| | 
+| |     Merge with upstream origin master branch.
+| | 
+| * commit 5b7f215091604353790375acbe478c12066d4115
+| | Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| | Date:   Thu Dec 28 19:23:37 2017 -0600
+| | 
+| |     Many various changes.
+| |     
+| |     + Fixes for resounding changes from MDACSHTTPServer.
+| |     + Now using SimpleServer infrastructure from MDACSHTTPServer.
+| |     + Added JournalDAO class to MDACSAPI for the MDACSUniversalRecords service.
+| |     
+| |     The MDACSHTTPServer changes enabled a lot less boilerplate code to exist in each service. This has brought a simplification of the database and app (unfinished) service.
+| | 
+| * commit 58a15e8a849d3bf6fe7f6203b16a23bd5f908e1d
+| | Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| | Date:   Thu Dec 28 05:22:48 2017 -0600
+| | 
+| |     - removed MDACSHTTPServer so it can be placed into its own repo.
+| | 
+| * commit a10e32b6559aa62318e648d81f4644f248828e66
+| | Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| | Date:   Thu Dec 28 01:21:02 2017 -0600
+| | 
+| |     Changes
+| | 
+| * commit 6a6d0afb76c9c1aef2bbb508405b2b81d8b42903
+| | Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| | Date:   Sat Dec 23 22:13:24 2017 -0600
+| | 
+| |     Minor changes to where Item is defined.
+| | 
+| * commit 95ff277071a229a5563366ae4062868ad5693455
+| | Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| | Date:   Wed Dec 20 01:16:01 2017 -0600
+| | 
+| |     Working on standardization and external reference. This is a part of the building of the test harness which will help ensure quality builds are produced. It also facilitates modularization for which other components can reference these components.
+| | 
+| * commit 5910724bbaef2d845d8f79f7ed28b24dc4472646
+| | Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| | Date:   Tue Dec 19 22:18:14 2017 -0600
+| | 
+| |     Uploads are now authenticated by the user.
+| |     
+| |     Uploads now write the username used to authenticate the upload to the metadata.
+| |     
+| |     Uploads now return in the response the given security identifier and the fully qualified path.
+| | 
+| * commit c4e6baebe7f033560cd000be7a6c0906a1d999dd
+| | Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| | Date:   Tue Dec 19 22:00:44 2017 -0600
+| | 
+| |     Added the delete handler for which the cloud component will use for auto-purging files.
+| | 
+| * commit 96c2dee3fde38797b3e311744a19f6e2213ed8be
+| | Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| | Date:   Tue Dec 19 20:51:39 2017 -0600
+| | 
+| |     When reading the metadata journal. Items with a security ID that is not of the correct length are skipped - but not deleted.
+| |     
+| |     When updating the on-disk meta data a coding error caused an exception when the item already existed in the dictionary. This was fixed and now the commitset will return an HTTP response allowing a message that the note was saved to be displayed.
+| | 
+* | commit c21563bcf4049f599d5eac4de736f23dbadaeed2
+| | Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| | Date:   Tue Jan 2 00:10:12 2018 -0600
+| | 
+| |     Corrections after integration hell.
+| | 
+* | commit 3a1fc9ffb986ae32ee6fc085d4c96c6c3a12a31e
+| | Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| | Date:   Mon Jan 1 23:47:54 2018 -0600
+| | 
+| |     + Added new logger implementation that uses reflection to make diagnostics easier. Planning to add compile time define to disable reflection if needed.
+| |     + Fixed bugs in HandleBatchSingleOps
+| |     + Fixed bugs in HandleCommitSet where proper HTTP responses needed to be sent for failures.
+| |     + Fixed major bugs in HandleUpload.
+| |     - Deleted old logger implementation.
+| |     + Journal is not locked via a semaphore on writes.
+| |     + Writes to the journal can now be assured.
+| |     + More MDACS.API implementation added.
+| | 
+* | commit 16f3ff198fac2e66d2c173d4e71dd9e493cd0d6e
+| | Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| | Date:   Mon Jan 1 18:32:56 2018 -0600
+| | 
+| |     Fixed CanUserModifyItem for non-administrative users.
+| | 
+* | commit 904273583d977b4dc8f9d579b2d7b0c20d91c511
+| | Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| | Date:   Mon Jan 1 14:38:36 2018 -0600
+| | 
+| |     Current work
+| | 
+* | commit bdc9ea1fcea35eca750bde72980b3de698d8a998
+| | Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| | Date:   Thu Dec 28 19:23:37 2017 -0600
+| | 
+| |     Many various changes.
+| |     
+| |     + Fixes for resounding changes from MDACSHTTPServer.
+| |     + Now using SimpleServer infrastructure from MDACSHTTPServer.
+| |     + Added JournalDAO class to MDACSAPI for the MDACSUniversalRecords service.
+| |     
+| |     The MDACSHTTPServer changes enabled a lot less boilerplate code to exist in each service. This has brought a simplification of the database and app (unfinished) service.
+| | 
+* | commit 127f50be5d9f18110d2121c3630d0f5d802f9a84
+| | Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| | Date:   Thu Dec 28 05:22:48 2017 -0600
+| | 
+| |     - removed MDACSHTTPServer so it can be placed into its own repo.
+| | 
+* | commit 8b205e50be0ab9aed8acacec723f98808b87d748
+| | Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| | Date:   Thu Dec 28 01:21:02 2017 -0600
+| | 
+| |     Changes
+| | 
+* | commit cb36f2b841dd5675f4675fe4633ab0822ab83cab
+| | Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| | Date:   Sat Dec 23 22:13:24 2017 -0600
+| | 
+| |     Minor changes to where Item is defined.
+| | 
+* | commit d90a9524874396c37e3e14a78d8b8b8d694f09d9
+| | Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| | Date:   Wed Dec 20 01:16:01 2017 -0600
+| | 
+| |     Working on standardization and external reference. This is a part of the building of the test harness which will help ensure quality builds are produced. It also facilitates modularization for which other components can reference these components.
+| | 
+* | commit 80b4844dd5cb526de2c4c3ac84da5f0d3fffdeac
+| | Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| | Date:   Tue Dec 19 22:18:14 2017 -0600
+| | 
+| |     Uploads are now authenticated by the user.
+| |     
+| |     Uploads now write the username used to authenticate the upload to the metadata.
+| |     
+| |     Uploads now return in the response the given security identifier and the fully qualified path.
+| | 
+* | commit cd0e6fc804874c7bdac9bec6733754296997cb82
+| | Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| | Date:   Tue Dec 19 22:00:44 2017 -0600
+| | 
+| |     Added the delete handler for which the cloud component will use for auto-purging files.
+| | 
+* | commit 9a3bea694e82bfe76f1168984d5136d0a8950476
+| | Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| | Date:   Tue Dec 19 20:51:39 2017 -0600
+| | 
+| |     When reading the metadata journal. Items with a security ID that is not of the correct length are skipped - but not deleted.
+| |     
+| |     When updating the on-disk meta data a coding error caused an exception when the item already existed in the dictionary. This was fixed and now the commitset will return an HTTP response allowing a message that the note was saved to be displayed.
+| | 
+* | commit 0d988f6be247708a881ad9179c8f34209c43bee6
+|/  Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+|   Date:   Mon Jan 1 15:05:27 2018 -0600
+|   
+|       epd working (again)
+| 
+* commit 88b74ad168926d07b94750b6504363ac24e43be7
+| Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| Date:   Tue Dec 19 20:33:37 2017 -0600
+| 
+|     Made all file moves for upload checked. This means the file move happens asynchronously then the destination is checked until the size equals what is expected.
+|     
+|     Added delay of 500ms to the static method WaitForFileSizeMatch since it was doing a CPU spin using only the Task.Yield() method.
+|     
+|     Changed WaitForFileSize match to look for an exact match.
+|     
+|     The upload handler now correctly looks for \n after the payload header instead of \r.
+|     
+|     The upload handler now uses a more descriptive name for the temporary file in the event things fail. It is now possible to determine what each temporary file was supposed to be in the event it is needed.
+|     
+|     The upload handler now does considerable work to ensure each file move is valid. This is the handle network drive setups where even though the OS routine for copy and move will return -- it still needs to be verified to have happened.
+|     
+|     The upload handler now calculates the security identifier for each item before writing it to the journal. It was incorrect left blank previously.
+|     
+|     Overflow and underflow checking enabled for DEBUG builds, at the least.
+|     
+|     Writing to the metajournal now correctly updates the in memory listing. Previously the journal was correctly written but the change was not reflected until the process restarted and re-read the journal.
+|     
+|     SempahoreSlim was replaced by AutoResetEvent in DoubleEndedStream. This was a more appropriate usage and it also fixed having to handle an exception. It is the equivalent of a sempahore with a maximum count of 1.
+|     
+|     DoubleEndedStream.WaitForRead has an asynchornous counterpart created called WaitForReadAsync.
+|     
+|     The async runner task in HTTPClient now has an abort signal called `runner_abort` which is set when a handler throws an exception. This solves the problem of defunt runners and handlers living forever waiting for something that will never happen.
+| 
+* commit 3dae46c7c04d40c390a710121bd712d1e45a1447
+| Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| Date:   Tue Dec 19 18:55:41 2017 -0600
+| 
+|     Bug fix. The variable `tndx` needed to be checked once before header size exceeded exception was thrown.
+| 
+* commit 9a724151b82dace3183f4954a99ec53540a37e16
+| Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| Date:   Tue Dec 19 17:31:21 2017 -0600
+| 
+|     Lots of bug fixes from live testing.
+|     + added throttled write support for double ended stream
+|     + throttled write when reading from remote
+| 
+* commit 776c1fcfded80cf4b7619a87bb83ec153d5f7b64
+| Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| Date:   Mon Dec 18 22:09:20 2017 -0600
+| 
+|     Fixed problem where development code caused an infinite loop of sorts trying to write data to a broken connection.
+| 
+* commit a559c3246ac6cd93801d569f74cffba72fe2efc5
+| Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| Date:   Mon Dec 18 22:03:52 2017 -0600
+| 
+|     Fixed bug in HTTPDecoder where Array.IndexOf did not properly utilize `ndx` and searched beyond the end of the utilized array into garbage data resulting in an exception when a negative length was produced.
+| 
+* commit cce306ce5a2b87d1b04abb1020eb471d9606dbdd
+| Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| Date:   Sun Dec 17 21:21:26 2017 -0600
+| 
+|     Fixed bug where MDACS pycommon did not properly handle a content-length response from the MDACSHTTPServer or the other way around. In anycase, switched to emulate content-length using chunked encoding.
+| 
+* commit 064e6dd1c7353aee7b346ae9126c167763c165ef
+| Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| Date:   Sun Dec 17 20:53:42 2017 -0600
+| 
+|     Bug fixes.
+| 
+* commit 91a3cc559db51caaef63bdbce6dbfccd6aa8b3ce
+| Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| Date:   Sun Dec 17 19:01:54 2017 -0600
+| 
+|     Misc Changes
+|     + added port option for database service
+| 
+* commit 5307a73d49e1fe4923d9bef0a5c3dc86c8368b21
+| Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| Date:   Sun Dec 17 17:49:45 2017 -0600
+| 
+|     Adding other projects.
+|     
+|     If division between teams needed one day then they can be split into separate repos.
+|   
+*   commit c5b9cba3985f3badf3eeee72d0768c7532213679
+|\  Merge: 361185f b6c193b
+| | Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| | Date:   Sun Dec 17 17:20:22 2017 -0600
+| | 
+| |     Merge branch 'master' of https://bitbucket.org/kmcg3413/dotnetdatabase
+| | 
+| * commit b6c193bec734b063dae1e4deae49c646c2c441ee
+| | Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| | Date:   Fri Dec 15 03:52:43 2017 +0000
+| | 
+| |     bitbucket-pipelines.yml deleted online with Bitbucket
+| | 
+| * commit 1f001efbc28e5e22b940224e9f53412b079316d7
+| | Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| | Date:   Fri Dec 15 03:50:39 2017 +0000
+| | 
+| |     Initial Bitbucket Pipelines configuration
+| | 
+* | commit 361185fc0d0ea6a0831129570d5024a821fb1672
+| | Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| | Date:   Sun Dec 17 17:19:25 2017 -0600
+| | 
+| |     Database Component Now Almost Fully Functional
+| |     + fixed bug with being unable to call WriteAsync; reverted to Write (sync)
+| |     + tested database /data, /enumerate-configurations, and /download
+| |     + tested /download partial requests with videos (allows seeking)
+| | 
+* | commit e2b40ec0f0d4a3d27fb6275b6cb4cb0083aac63f
+| | Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| | Date:   Sat Dec 16 01:04:41 2017 -0600
+| | 
+| |     Moving each handler into a separate source file and allowing HTTP client implementation to be extended through the passing of delegates that reference each implementation of a handler.
+| | 
+* | commit 5055fd1874e97d6a019392e660929abfab979b63
+|/  Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+|   Date:   Sat Dec 16 00:47:45 2017 -0600
+|   
+|       Ready but not debugged.
+| 
+* commit 42628f3ed00e25daaa78d8dcd83f92c19243e4b4
+| Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| Date:   Thu Dec 14 21:47:20 2017 -0600
+| 
+|     Added more database functions.
+| 
+* commit bfd5eced476166d51f4770daee45c6007faff712
+| Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| Date:   Tue Dec 12 02:31:24 2017 -0600
+| 
+|     Split HTTP server code into separate library.
+| 
+* commit 8287ef920dcededaa0afd6b5b0d9efaf55c9c7d4
+| Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| Date:   Mon Dec 11 04:50:37 2017 -0600
+| 
+|     Lots of bug fixes. All within the new HTTP server code. Absent locking, race conditions, and slight design oversights (yet fixable once realized).
+| 
+* commit 2465c7d9ac9a94ec599e9e928b170c1147e60ded
+| Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| Date:   Mon Dec 11 01:25:49 2017 -0600
+| 
+|     Fixed bugs in HTTP server implementation.
+|     Still need to test client multi-part and content-length POST/anything requests.
+|     Currently database can load metajournal and serve the data to the web page application.
+| 
+* commit 47454f56118cf535c39326ad0fcf69db1187382b
+| Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| Date:   Fri Dec 8 19:36:21 2017 -0600
+| 
+|     Working server content-length and chunked-encoding, but client content-length and chunked-encoding not tested.
+| 
+* commit f8e4cc876066a39e01b8b36d68e9e79f562ff6ab
+| Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| Date:   Thu Dec 7 14:58:57 2017 -0600
+| 
+|     Add project files.
+| 
+* commit 74b14d8773b74d3660d8f48826fd88df99236f09
+  Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+  Date:   Thu Dec 7 14:58:53 2017 -0600
+  
+      Add .gitignore and .gitattributes.

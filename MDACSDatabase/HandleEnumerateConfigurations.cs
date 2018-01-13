@@ -1,4 +1,6 @@
-﻿using MDACS.Server;
+﻿using MDACS.API.Responses;
+using MDACS.Server;
+using MDACSAPI;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -10,12 +12,6 @@ namespace MDACS.Database
 {
     internal static class HandleEnumerateConfigurations
     {
-        public class HandleEnumerateConfigurationsResponse
-        {
-            public bool success;
-            public Dictionary<String, String> configs;
-        }
-
         public static async Task<Task> Action(ServerHandler shandler, HTTPRequest request, Stream body, IProxyHTTPEncoder encoder)
         {
             var auth = await Helpers.ReadMessageFromStreamAndAuthenticate(shandler, 1024 * 16, body);
@@ -25,7 +21,9 @@ namespace MDACS.Database
                 throw new UnauthorizedException();
             }
 
-            var resp = new HandleEnumerateConfigurationsResponse();
+            var resp = new EnumerateConfigurationsResponse();
+
+            resp.success = true;
 
             resp.configs = new Dictionary<string, string>();
 
@@ -37,7 +35,7 @@ namespace MDACS.Database
 
                     var fnode_filename = Path.GetFileName(fnode);
 
-                    if (fnode_filename.StartsWith("config_"))
+                    if (fnode_filename.StartsWith("config_") && fnode_filename.EndsWith(".data"))
                     {
                         var fd = File.OpenRead(fnode);
 
@@ -64,17 +62,15 @@ namespace MDACS.Database
             }
             catch (Exception ex)
             {
-                throw new ProgramException("Error happened during enumeration of configurations.", ex);
+                Logger.WriteCriticalString($"Error during configuration enumeration as follows:\n{ex}");
+
+                await encoder.WriteQuickHeader(500, "Problem");
+                await encoder.BodyWriteSingleChunk("");
+                return Task.CompletedTask;
             }
 
-            using (var de_stream = new DoubleEndedStream())
-            {
-                await encoder.WriteQuickHeader(200, "OK");
-                var tmp = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(resp));
-                await encoder.BodyWriteStream(de_stream);
-                await de_stream.WriteAsync(tmp, 0, tmp.Length);
-            }
-
+            await encoder.WriteQuickHeader(200, "OK");
+            await encoder.BodyWriteSingleChunk(JsonConvert.SerializeObject(resp));
             return Task.CompletedTask;
         }
     }
