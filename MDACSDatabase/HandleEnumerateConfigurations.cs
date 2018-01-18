@@ -18,7 +18,7 @@ namespace MDACS.Database
 
             if (!auth.success)
             {
-                throw new UnauthorizedException();
+                return encoder.Response(403, "Denied").SendNothing();
             }
 
             var resp = new EnumerateConfigurationsResponse();
@@ -64,14 +64,10 @@ namespace MDACS.Database
             {
                 Logger.WriteCriticalString($"Error during configuration enumeration as follows:\n{ex}");
 
-                await encoder.WriteQuickHeader(500, "Problem");
-                await encoder.BodyWriteSingleChunk("");
-                return Task.CompletedTask;
+                return encoder.Response(500, "Error").SendNothing();
             }
 
-            await encoder.WriteQuickHeader(200, "OK");
-            await encoder.BodyWriteSingleChunk(JsonConvert.SerializeObject(resp));
-            return Task.CompletedTask;
+            return encoder.Response(200, "OK").SendJsonFromObject(resp);
         }
     }
 }

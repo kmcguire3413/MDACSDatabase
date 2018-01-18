@@ -69,10 +69,7 @@ namespace MDACS.API.Responses
 
     public class VersionResponse
     {
-        public int major;
-        public int minor;
-        public int build;
-        public int revision;
+        public string version;
     }
 
     public class HandleBatchSingleOpsResponse

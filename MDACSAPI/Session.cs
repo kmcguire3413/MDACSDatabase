@@ -63,6 +63,17 @@ namespace MDACS.API
             );
         }
 
+        public async Task<bool> Delete(string sid)
+        {
+            return await Database.DeleteAsync(
+                auth_url,
+                db_url,
+                username,
+                password,
+                sid
+            );
+        }
+
         public async Task<DeviceConfigResponse> DeviceConfig(string deviceid, string current_config_data)
         {
             return await Database.DeviceConfig(

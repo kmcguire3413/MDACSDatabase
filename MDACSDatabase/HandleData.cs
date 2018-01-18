@@ -22,10 +22,8 @@ namespace MDACS.Database
 
             if (!auth_resp.success)
             {
-                throw new UnauthorizedException();
+                return encoder.Response(403, "Denied").SendNothing();
             }
-
-            Console.WriteLine("data fetch validated user OK");
 
             var reply = new HandleDataReply();
 
@@ -47,15 +45,7 @@ namespace MDACS.Database
                 }
             }
 
-            using (var de_stream = new DoubleEndedStream())
-            {
-                await encoder.WriteQuickHeader(200, "OK");
-                var tmp = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(reply));
-                await encoder.BodyWriteStream(de_stream);
-                await de_stream.WriteAsync(tmp, 0, tmp.Length);
-            }
-
-            return Task.CompletedTask;
+            return encoder.Response(200, "OK").SendJsonFromObject(reply);
         }
     }
 }

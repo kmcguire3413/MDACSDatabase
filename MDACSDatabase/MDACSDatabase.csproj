@@ -9,8 +9,20 @@
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <CheckForOverflowUnderflow>true</CheckForOverflowUnderflow>
-    <FileAlignment>4096</FileAlignment>
+    <DefineConstants>TRACE;DEBUG;NETCOREAPP2_0;USE_SOURCE_DIRECTORY_WEBRES</DefineConstants>
   </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <DefineConstants>NETCOREAPP2_0</DefineConstants>
+  </PropertyGroup>  
+
+  <ItemGroup>
+    <None Remove="buildinfo.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="buildinfo.json" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="10.0.3" />
@@ -19,13 +31,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\MDACSHTTPServer\MDACSHTTPServer.csproj" />
     <ProjectReference Include="..\MDACSAPI\MDACSAPI.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <Reference Include="MDACSHTTPServer">
-      <HintPath>..\..\MDACSHTTPServer\bin\Debug\netstandard2.0\MDACSHTTPServer.dll</HintPath>
-    </Reference>
     <Reference Include="mscorlib">
       <HintPath>mscorlib</HintPath>
     </Reference>
@@ -55,6 +65,6 @@
   </PropertyGroup>
   
   <Target Name="PreBuild" BeforeTargets="PreBuildEvent">
-    <Exec Command="c:\users\kmcgu\appdata\local\Programs\Python\Python36\python.exe pre-build.py" />
+    <Exec Command="python3 pre-build.py" />
   </Target>
 </Project>

@@ -1,3 +1,9 @@
+* commit 65e0186ccfc9d1bfbe4e9b788d3b02973c61fe20
+| Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
+| Date:   Sat Jan 13 05:15:59 2018 -0600
+| 
+|     Lots of changes over time.
+| 
 * commit 7f4b5c5add4ec5d24b0a0aca7579a4f57a0c4d9f
 | Author: Leonard Kevin McGuire Jr <kmcg3413@gmail.com>
 | Date:   Tue Jan 2 05:12:11 2018 -0600

@@ -15,10 +15,7 @@ namespace MDACS.Database
 {
     class InternalVersonInfo
     {
-        public int major;
-        public int minor;
-        public int build;
-        public int revision;
+        public string version;
     }
 
     static class HandleVersion
@@ -41,15 +38,6 @@ namespace MDACS.Database
                 cnt = await body.ReadAsync(buf, 0, buf.Length);
             } while (cnt > 0);
 
-
-            var resp = new VersionResponse()
-            {
-                major = 0,
-                minor = 0,
-                build = 0,
-                revision = 0,
-            };
-
             InternalVersonInfo ver_info;
 
             using (var strm = Assembly.GetExecutingAssembly().GetManifestResourceStream("MDACSDatabase.buildinfo.json"))
@@ -59,10 +47,10 @@ namespace MDACS.Database
                 ver_info = JsonConvert.DeserializeObject<InternalVersonInfo>(json_data);
             }
 
-            resp.major = ver_info.major;
-            resp.minor = ver_info.minor;
-            resp.build = ver_info.build;
-            resp.revision = ver_info.revision;
+            var resp = new VersionResponse()
+            {
+                version = ver_info.version,
+            };
 
             await encoder.WriteQuickHeader(200, "OK");
             await encoder.BodyWriteSingleChunk(JsonConvert.SerializeObject(resp));
