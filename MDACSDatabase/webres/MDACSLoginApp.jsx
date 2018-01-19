@@ -35,11 +35,17 @@ const MDACSLoginAppViews = {
     const onCheckLogin = mutators.onCheckLogin;
 
     if (state.showLogin) {
-        return <MDACSLogin 
-            onCheckLogin={(u, p) => onCheckLogin(props, state, setState, u, p)} 
-        />;
+        return <div>
+            <div>
+                <img src="utility?logo.png" height="128px" />
+            </div>
+            <MDACSLogin 
+                onCheckLogin={(u, p) => onCheckLogin(props, state, setState, u, p)} 
+            />
+            </div>;
     } else {
       return <MDACSServiceDirectory
+                  daoDatabase={state.daoAuth.getDatabaseDAO(props.dbUrl)}
                   daoAuth={state.daoAuth}
                   authUrl={props.authUrl}
                   dbUrl={props.dbUrl}

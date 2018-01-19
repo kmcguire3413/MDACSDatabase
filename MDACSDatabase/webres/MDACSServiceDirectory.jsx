@@ -9,7 +9,7 @@ const MDACSServiceDirectoryMutators = {
 
 const MDACSServiceDirectoryViews = {
     Main: (props, state, setState, mutators) => {
-        return (<MDACSDatabaseModule dao={state.dbdao} />);
+        return (<MDACSDatabaseModule dao={props.daoDatabase} />);
     },
 };
 

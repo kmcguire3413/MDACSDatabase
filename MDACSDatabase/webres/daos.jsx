@@ -11,7 +11,7 @@ class DatabaseNetworkDAO {
             {
             },
             (resp) => {
-                success(resp);
+                success(JSON.parse(resp.test));
             },
             (res) => {
                 failure(res);
@@ -109,7 +109,11 @@ class BasicNetworkDAO {
     }
 
     clone(url_service) {
-    return new BasicNetworkDAO(this.url_auth, url_service);
+        var ret = new BasicNetworkDAO(this.url_auth, url_service);
+        ret.setUsername(this.username);
+        ret.hashed_password = this.hashed_password;
+
+        return ret;
     }
 
     setUsername(username) {

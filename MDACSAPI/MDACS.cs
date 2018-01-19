@@ -10,7 +10,6 @@ using System.Threading.Tasks;
 
 namespace MDACS.API
 {
-
     public class Auth
     {
         class AuthCompletePacketInner
