@@ -39,7 +39,7 @@ namespace MDACS.Database
 #if USE_SOURCE_DIRECTORY_WEBRES
             var strm = File.OpenRead(
                 Path.Combine(
-                    @"C:\Users\kmcgu\source\repos\MDACSAuth\MDACSAuth\webres\",
+                    @"/home/kmcguire/extra/old/source/repos/MDACSDatabase/MDACSDatabase/webres",
                     target
                 )
             );

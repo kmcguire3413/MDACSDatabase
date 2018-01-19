@@ -131,6 +131,8 @@ namespace MDACS.API
             public bool admin;
             public string userfilter;
             public bool can_delete;
+            public string phone;
+            public string email;
         }
 
         public class AuthCheckPayload

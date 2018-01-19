@@ -3,6 +3,7 @@ import xml.etree.ElementTree as et
 import datetime
 import json
 import os.path
+import os
 
 def IncrementVersionString(verstr):
 	verstr = verstr.split('.')
@@ -21,7 +22,7 @@ def IncrementVersionString(verstr):
 
 	return '%s.%s.%s.%s' % (major, minor, build, rev)
 
-def IncrementVersionOnProject(project, breaking_changes=False):
+def IncrementVersionOnProject(breaking_changes=False):
 	buildinfo_path = 'buildinfo.json'
 	if os.path.exists(buildinfo_path):
 		fd = open(buildinfo_path, 'r')
@@ -38,4 +39,54 @@ def IncrementVersionOnProject(project, breaking_changes=False):
 	fd.write(json.dumps(buildinfo))
 	fd.close()
 
-IncrementVersionOnProject('MDACSDatabase')
+print('+ incrementing version')
+IncrementVersionOnProject()
+
+def jsx_to_js(infile, outfile, outfilemode):
+	print('+ compiling JSX into JS for %s' % infile)
+	stdout, stderr = subprocess.Popen([
+			'babel',
+			'--plugins',
+			'transform-react-jsx',
+			infile,
+	], stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate('')
+
+	stderr = stderr.decode('utf8')
+	stdout = stdout.decode('utf8')
+
+	fd = open(outfile, outfilemode)
+	fd.write(stdout)
+	fd.close()
+
+	if len(stderr) > 0:
+		print(stderr)
+		raise Exception('jsx_to_js failed')
+
+def compile_jsx_and_concat(pdir):
+	nodes = os.listdir(pdir)
+
+	open(os.path.join(pdir, 'app.js'), 'w').close()
+
+	for node in nodes:
+		(node_base, ext) = os.path.splitext(node)
+
+		if ext != '.jsx':
+			continue
+		
+		if node_base == 'app':
+			continue
+		
+		jsx_to_js(
+			os.path.join(pdir, node), 
+			os.path.join(pdir, 'app.js'),
+			'a'
+		)
+	
+	if os.path.exists(os.path.join(pdir, 'app.jsx')):
+		jsx_to_js(
+			os.path.join(pdir, 'app.jsx'), 
+			os.path.join(pdir, 'app.js'),
+			'a'
+		)	
+
+compile_jsx_and_concat('./webres')
