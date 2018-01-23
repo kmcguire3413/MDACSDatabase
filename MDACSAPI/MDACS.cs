@@ -130,6 +130,7 @@ namespace MDACS.API
             public bool admin;
             public string userfilter;
             public bool can_delete;
+            public bool developer_privacy_feature;
             public string phone;
             public string email;
         }

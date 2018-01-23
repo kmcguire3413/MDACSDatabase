@@ -42,7 +42,7 @@ def IncrementVersionOnProject(breaking_changes=False):
 print('+ incrementing version')
 IncrementVersionOnProject()
 
-def jsx_to_js(infile, outfile, outfilemode):
+def jsx_to_js(infile, outputs):
 	print('+ compiling JSX into JS for %s' % infile)
 	stdout, stderr = subprocess.Popen([
 			'babel',
@@ -54,13 +54,16 @@ def jsx_to_js(infile, outfile, outfilemode):
 	stderr = stderr.decode('utf8')
 	stdout = stdout.decode('utf8')
 
-	fd = open(outfile, outfilemode)
-	fd.write(stdout)
-	fd.close()
-
 	if len(stderr) > 0:
 		print(stderr)
 		raise Exception('jsx_to_js failed')
+
+	for (outfile, outfilemode) in outputs:
+		print(' - writing %s' % outfile)
+		fd = open(outfile, outfilemode)
+		fd.write('/// <jsx-source-file>%s</jsx-source-file>\n' % infile)
+		fd.write(stdout)
+		fd.close()
 
 def compile_jsx_and_concat(pdir):
 	nodes = os.listdir(pdir)
@@ -78,15 +81,18 @@ def compile_jsx_and_concat(pdir):
 		
 		jsx_to_js(
 			os.path.join(pdir, node), 
-			os.path.join(pdir, 'app.js'),
-			'a'
+			[
+				(os.path.join(pdir, 'app.js'), 'a'),
+				(os.path.join(pdir, '%s.js' % node_base), 'w'),
+			]
 		)
 	
 	if os.path.exists(os.path.join(pdir, 'app.jsx')):
 		jsx_to_js(
 			os.path.join(pdir, 'app.jsx'), 
-			os.path.join(pdir, 'app.js'),
-			'a'
+			[
+				(os.path.join(pdir, 'app.js'), 'a'),
+			]
 		)	
 
 compile_jsx_and_concat('./webres')

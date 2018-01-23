@@ -8,10 +8,22 @@ class DatabaseNetworkDAO {
     data(success, failure) {
         this.dao.authenticatedTransaction(
             '/data',
-            {
-            },
+            {},
             (resp) => {
-                success(JSON.parse(resp.test));
+                success(JSON.parse(resp.text));
+            },
+            (res) => {
+                failure(res);
+            }
+        );
+    }
+
+    data_noparse(success, failure) {
+        this.dao.authenticatedTransaction(
+            '/data',
+            {},
+            (resp) => {
+                success(resp.text);
             },
             (res) => {
                 failure(res);
@@ -85,7 +97,25 @@ class AuthNetworkDAO {
         this.dao.setPassword(password);
     }
 
+    setUsername(username) {
+        this.dao.setUsername(username);
+    }
+
+    setPassword(password) {
+        this.dao.setPassword(password);
+    }
+
+    setHashedPassword(hashedPassword) {
+        this.dao.setHashedPassword(hashedPassword);
+    }
+
     isLoginValid(success, failure) {
+        success(null);
+
+        if (true) {
+            return;
+        }
+
         this.dao.authenticatedTransaction(
             '/is-login-valid',
             {},
@@ -122,6 +152,10 @@ class BasicNetworkDAO {
 
     setPassword(password) {
         this.hashed_password = sha512(password);
+    }
+
+    setHashedPassword(hashedPassword) {
+        this.hashed_password = hashedPassword;
     }
 
     challenge(success, failure) {
