@@ -124,7 +124,7 @@ class MDACSDataItemState extends React.Component {
         forEachItemSet(toStateFrom, listAutoPurge, a);
         forEachItemSet(toStateFrom, ['delete', 'keep-forever', 'unknown'], a);
         forEachItemSet(toStateFrom, ['', null, undefined], a);
-        forEachItemSet(toStateFrom, ['delete'], ['restore']);
+        forEachItemSet(toStateFrom, ['deleted'], ['restore']);
 
         const options = [];
 
@@ -174,6 +174,7 @@ class MDACSDataItemState extends React.Component {
 /// <prop name="index">The descriptive index of the item within all items.</prop>
 /// <prop name="item">The item object.</prop>
 /// <prop name="updater">The object with callable methods to schedule changes.</prop>
+/// <prop name="viewer">The object with callable methods to view items.</prop>
 class MDACSDataItem extends React.Component {
     constructor(props) {
         super(props);
@@ -190,6 +191,16 @@ class MDACSDataItem extends React.Component {
         const setState = this.setState.bind(this);
         const item = props.item;
         const updater = props.updater;
+        const viewer = props.viewer;
+
+        const onViewClick = (e) => {
+            e.preventDefault();
+
+            viewer.viewItemStack(item);
+        };
+
+        const childrenCount = item.children ? item.children.length : 0;
+        const dataType = item.datatype;
 
         return <tr>
                 <td>{props.index}</td>
@@ -198,6 +209,7 @@ class MDACSDataItem extends React.Component {
                 <td><MDACSDataItemTime value={item.timestr} sid={item.security_id} updater={updater}/></td>
                 <td><MDACSDataItemUser value={item.userstr} sid={item.security_id} updater={updater}/></td>
                 <td><MDACSDataItemDevice value={item.devicestr} sid={item.security_id} updater={updater}/></td>
+                <td><Button bsSize="xsmall" bsStyle="link" onClick={onViewClick}>View [{dataType}:{childrenCount + 1}]</Button></td>
                 <td style={{ width: '100%' }}><MDACSDataItemNote value={item.note} sid={item.security_id} updater={updater}/></td>
             </tr>;
     }

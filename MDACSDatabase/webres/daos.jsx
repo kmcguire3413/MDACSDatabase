@@ -5,6 +5,10 @@ class DatabaseNetworkDAO {
         this.dao = base_dao;
     }
 
+    getDownloadUrl(sid) {
+        return this.dao.url_service + '/download?' + sid;
+    }
+
     setState(sid, newState, success, failure) {
         this.setField(sid, 'state', newState, success, failure);
     }

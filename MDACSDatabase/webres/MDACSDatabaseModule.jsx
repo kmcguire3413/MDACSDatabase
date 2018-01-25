@@ -48,6 +48,7 @@ class MDACSConfigurationList extends React.Component {
     }
 }
 
+/// <prop name="viewer">The object with callable methods for viewing items.</prop>
 /// <prop name="updater">The object with callable methods for updating data.</prop>
 /// <prop name="beginIndex">Only for visual purposes, if needed.</prop>
 /// <prop name="endIndex">Only for visual purposes, if needed.</prop>
@@ -98,8 +99,13 @@ class MDACSDataView extends React.Component {
             let item = data[x];
 
             if (item !== undefined && item !== null) {
-                console.log('item', x, item);
-                tmp.push(<MDACSDataItem updater={props.updater} index={x + beginIndex} key={item.security_id} item={item}/>);
+                console.log(item.state, item.datestr, item.timestr, item.userstr, item.devicestr);
+                tmp.push(<MDACSDataItem 
+                            viewer={props.viewer} 
+                            updater={props.updater} 
+                            index={x + beginIndex} 
+                            key={item.security_id} 
+                            item={item}/>);
             }
         }
 
@@ -119,6 +125,7 @@ class MDACSDataView extends React.Component {
                             <td>Time</td>
                             <td>User</td>
                             <td>Device</td>
+                            <td>View</td>
                             <td style={{width: '100%'}}>Note</td>
                         </tr>
                     </thead>
@@ -146,6 +153,8 @@ const MDACSDatabaseModuleStateGenerator = (props) => {
         searchValue: '',
         toggleDeletedbuttonText: 'Show Deleted',
         showDeleted: false,
+        currentlyViewingItems: null,
+        itemViewStuff: null,
     };
 
     return state;
@@ -257,6 +266,7 @@ const MDACSDatabaseModuleMutators = {
             error: null,
             data: null,
             workerStatus: 'Loading...',
+            searchValue: '',
         });
 
         props.dao.data_noparse(
@@ -288,12 +298,13 @@ const MDACSDatabaseModuleMutators = {
                 beginIndex: 0,
                 endIndex: state.visibleCount, 
                 showDeleted: true,
+                searchValue: '',
             })
 
             state.worker.postMessage({
                 topic: 'ProduceSubSet',
                 criteria: [],
-                showDeleted: state.showDeleted,
+                showDeleted: true,
             });
         } else {
             setState({
@@ -301,19 +312,20 @@ const MDACSDatabaseModuleMutators = {
                 beginIndex: 0,
                 endIndex: state.visibleCount,
                 showDeleted: false,
+                searchValue: '',
             })
 
             state.worker.postMessage({
                 topic: 'ProduceSubSet',
                 criteria: [],
-                showDeleted: state.showDeleted,
+                showDeleted: false,
             });
         }
     },
 };
 
 const MDACSDatabaseModuleViews = {
-    Main: (props, state, setState, mutators, updaterInterface) => {
+    Main: (props, state, setState, mutators, updaterInterface, viewerInterface) => {
         let errorView;
 
         const prevPage = () => mutators.prevPage(props, state, setState);
@@ -349,13 +361,16 @@ const MDACSDatabaseModuleViews = {
                             </td>
                             <td>
                                 <div>
-                                    <Button
-                                        onClick={onSearchClick}>Search</Button>
-                                    <input 
-                                        onChange={onSearchChange}
-                                        type="text"
-                                        placeholder="Type search words here."
-                                        value={state.searchValue}/>
+                                    <form onSubmit={onSearchClick}>                                        
+                                        <Button type="submit">Search</Button>
+                                        <FormControl
+                                            id="searchText"
+                                            type="text"
+                                            value={state.searchValue}
+                                            placeholder="Type search words here."
+                                            onChange={onSearchChange}
+                                        />                                            
+                                    </form>
                                 </div>
                                 <hr/>
                                 <div>
@@ -389,25 +404,106 @@ const MDACSDatabaseModuleViews = {
             }}>Pending Updates: {state.pendingOperationCount}</span>;
         }
 
-        return <div>
+        let dataViewPanel = <div>
+                <Panel bsStyle="primary">
+                    <Panel.Heading>
+                        <Panel.Title componentClass="h3">Data View and Edit</Panel.Title>
+                    </Panel.Heading>
+                    <Panel.Body>
+                        <div>
+                            {bar}
+                        </div>
+                        <h3>{state.workerStatus}</h3>
+                        <h3>{errorView}</h3>
+                            <MDACSDataView 
+                                viewer={viewerInterface}
+                                updater={updaterInterface} 
+                                data={state.data} 
+                                beginIndex={state.beginIndex} 
+                                endIndex={state.endIndex} />
+                        <div>
+                            {bar}
+                        </div>
+                    </Panel.Body>
+                </Panel>
+                {statusHeader}
+            </div>;
+
+        let buttonsForItems = [];
+
+        if (state.currentlyViewingItems !== null) {
+            function buildHandler(i) {
+                return (e, i) => {
+                    e.preventDefault();
+
+                    const src = props.dao.getDownloadUrl(i.security_id);
+
+                    if (i.datatype === 'mp4') {
+                        setState({
+                            itemViewStuff: <div>
+                                    MP4 {i.datestr} {i.timestr}
+                                    <video style={{ width: '100%', height: '100%' }} src={src} controls="true"/>
+                                </div>
+                        });
+                    } else if (i.datatype === 'jpg') {
+                        setState({
+                            itemViewStuff: <div>
+                                JPG IMAGE {i.datestr} {i.timestr}
+                                <img style={{ width: '100%', height: '100%' }} src={src}/>
+                            </div>
+                        });
+                    } else {
+                        setState({
+                            itemViewStuff: <a href={src}>Download</a>
+                        });
+                    }
+                };
+            }
+
+            for (let x = 0; x < state.currentlyViewingItems.length; ++x) {
+                let i = state.currentlyViewingItems[x];
+
+                let handler = buildHandler(i);
+
+                buttonsForItems.push(<Button key={i.security_id} onClick={(e) => handler(e, i)}>#{x}</Button>);
+            }
+        }
+
+        const goBack = (e) => {
+            e.preventDefault();
+
+            setState({
+                currentlyViewingItems: null,
+                itemViewPanel: null,
+            });
+        };
+        
+        let itemViewPanel = <div>
             <Panel bsStyle="primary">
                 <Panel.Heading>
                     <Panel.Title componentClass="h3">Data View and Edit</Panel.Title>
                 </Panel.Heading>
                 <Panel.Body>
-            <div>
-            {bar}
-            </div>
-            <h3>{state.workerStatus}</h3>
-            <h3>{errorView}</h3>
-            <MDACSDataView updater={updaterInterface} data={state.data} beginIndex={state.beginIndex} endIndex={state.endIndex} />
-            <div>
-            {bar}
-            </div>
-            </Panel.Body>
+                    <div>
+                        <Button onClick={goBack}>Exit</Button>
+                    </div>
+                    <Panel>
+                        {buttonsForItems}
+                    </Panel>
+                    {state.itemViewStuff}
+                </Panel.Body>            
             </Panel>
             {statusHeader}
-            </div>;
+        </div>;
+
+        // Split these into separate components eventually. For now, PUSH forward
+        // for a demonstration with Chief and Wilhoit.
+        if (state.currentlyViewingItems === null) {
+            return dataViewPanel;
+        } else {
+            return itemViewPanel;
+        }
+
     },
 };
 
@@ -539,6 +635,20 @@ class MDACSDatabaseModule extends React.Component {
         );
     }
 
+    viewItemStack(item) {
+        let itemsUnstacked = [];
+
+        itemsUnstacked.push(item);
+
+        for (let x = 0; x < item.children.length; ++x) {
+            itemsUnstacked.push(item.children[x]);
+        }
+
+        this.setState({
+            currentlyViewingItems: itemsUnstacked,
+        });
+    }
+
     componentDidMount() {
         console.log('fetching data');
         
@@ -563,12 +673,17 @@ class MDACSDatabaseModule extends React.Component {
             setState: this.setItemState.bind(this),
         }
 
+        let viewerInterface = {
+            viewItemStack: this.viewItemStack.bind(this),
+        };
+
         return MDACSDatabaseModuleViews.Main(
             this.props,
             this.state,
             this.setState.bind(this),
             MDACSDatabaseModuleMutators,
-            updaterInterface
+            updaterInterface,
+            viewerInterface
         );
     }
 }
