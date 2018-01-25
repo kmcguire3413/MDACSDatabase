@@ -13,6 +13,7 @@ const MDACSLoginAppMutators = {
         username, 
         password
     );
+
     state.daoAuth.isLoginValid(
         (user) => {
             setState({
@@ -35,6 +36,12 @@ const MDACSLoginAppViews = {
     const onCheckLogin = mutators.onCheckLogin;
 
     if (state.showLogin) {
+        let alert_area = null;
+        
+        if (state.alert !== null) {
+            alert_area = <Alert>{state.alert}</Alert>;
+        }
+
         return <div>
             <div>
                 <img src="utility?logo.png" height="128px" />
@@ -42,6 +49,7 @@ const MDACSLoginAppViews = {
             <MDACSLogin 
                 onCheckLogin={(u, p) => onCheckLogin(props, state, setState, u, p)} 
             />
+            {alert_area}
             </div>;
     } else {
       return <MDACSServiceDirectory

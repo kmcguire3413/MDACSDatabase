@@ -90,7 +90,6 @@ namespace MDACS.Database
 
                 foreach (var pair in shandler.items)
                 {
-                    // PRIVCHECK MARK
                     if (
                         Helpers.CanUserSeeItem(auth_resp.user, pair.Value)
                     )

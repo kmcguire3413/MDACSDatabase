@@ -31,7 +31,7 @@ namespace MDACS.Database
 
                 // Once the above completed then watch the file until the size matches the expected.
                 await WaitForFileSizeMatch(to, size, 5);
-            } catch (Exception _)
+            } catch (Exception)
             {
                 return false;
             }
@@ -246,7 +246,7 @@ namespace MDACS.Database
                 
                 await CheckedFileMoveAsync(temp_data_node_path, data_node_path);
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 // Delete the temporary since we should have saved the original.
                 File.Delete(temp_data_node_path);

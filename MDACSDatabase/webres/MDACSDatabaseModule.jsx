@@ -48,12 +48,38 @@ class MDACSConfigurationList extends React.Component {
     }
 }
 
+/// <prop name="updater">The object with callable methods for updating data.</prop>
 /// <prop name="beginIndex">Only for visual purposes, if needed.</prop>
 /// <prop name="endIndex">Only for visual purposes, if needed.</prop>
 /// <prop name="data">Used to render the items. The entire data array is rendered.</prop>
 class MDACSDataView extends React.Component {
     constructor(props) {
         super(props)
+    }
+
+    shouldComponentUpdate(nextProps, nextState) {
+        let nextData = nextProps.data;  
+        let curData = this.props.data;
+
+        if (curData === null && nextData === null) {
+            return false;
+        }
+
+        if (curData === null || nextData === null) {
+            return true;
+        }
+
+        if (curData.length !== nextData.length) {
+            return true;
+        }
+
+        for (let x = 0; x < curData.length; ++x) {
+            if (curData[x] !== nextData[x]) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     render() {
@@ -72,7 +98,8 @@ class MDACSDataView extends React.Component {
             let item = data[x];
 
             if (item !== undefined && item !== null) {
-                tmp.push(<MDACSDataItem index={x + beginIndex} key={item.security_id} item={item}/>);
+                console.log('item', x, item);
+                tmp.push(<MDACSDataItem updater={props.updater} index={x + beginIndex} key={item.security_id} item={item}/>);
             }
         }
 
@@ -104,7 +131,7 @@ class MDACSDataView extends React.Component {
     }
 }
 
-const MDACSDatabaseModuleStateGenerator = () => {
+const MDACSDatabaseModuleStateGenerator = (props) => {
     let state = {
         data: null,
         error: null,
@@ -112,10 +139,13 @@ const MDACSDatabaseModuleStateGenerator = () => {
         endIndex: 50,
         visibleCount: 50,
         dataCount: 0,
+        pendingOperationCount: 0,
         builtInitialSubset: false,
         workerStatus: 'Loading...',
         worker: new Worker('utility?MDACSDataWorker.js'),
         searchValue: '',
+        toggleDeletedbuttonText: 'Show Deleted',
+        showDeleted: false,
     };
 
     return state;
@@ -128,18 +158,15 @@ const MDACSDatabaseModuleMutators = {
         switch (msg.topic) {
             case 'LoadDataStringDone':
             {
-                // If the initial subset has not been produced
-                // then issue the command to build it.
-                if (state.builtInitialSubset === false) {
-                    setState({
-                        builtInitialSubset: true,
-                    });
+                setState({
+                    builtInitialSubset: true,
+                });
 
-                    state.worker.postMessage({
-                        topic: 'ProduceSubSet',
-                        criteria: [],
-                    });
-                }
+                state.worker.postMessage({
+                    topic: 'ProduceSubSet',
+                    criteria: [],
+                    showDeleted: state.showDeleted,
+                });
                 break;
             }
             case 'ProduceSubSetDone':
@@ -153,7 +180,7 @@ const MDACSDatabaseModuleMutators = {
                 state.worker.postMessage({
                     topic: 'GetSubSetOfSubSet',
                     beginIndex: 0,
-                    endIndex: state.visibleCount,
+                    endIndex: state.visibleCount
                 });
                 break;
             }
@@ -218,18 +245,83 @@ const MDACSDatabaseModuleMutators = {
         state.worker.postMessage({
             topic: 'ProduceSubSet',
             criteria: state.searchValue.split(' '),
+            showDeleted: state.showDeleted,
         });
+    },
+    onReloadData: (props, state, setState, e) => {
+        if (e !== null && e !== undefined) {
+            e.preventDefault();
+        }
+
+        setState({
+            error: null,
+            data: null,
+            workerStatus: 'Loading...',
+        });
+
+        props.dao.data_noparse(
+            (dataString) => {
+                //dataString = generate_sample_data(10000);
+
+                setState({
+                    error: null,
+                    data: null,
+                });
+
+                state.worker.postMessage({
+                    topic: 'LoadDataString',
+                    dataString: dataString,
+                });
+            },
+            (res) => {
+                console.log('data fetch error', res);
+                setState({
+                    error: 'A problem happened when retrieving data from the server.',
+                });
+            }
+        );
+    },
+    onToggleDeleted: (props, state, setState, e) => {
+        if (state.toggleDeletedbuttonText === 'Show Deleted') {
+            setState({
+                toggleDeletedbuttonText: 'Hide Deleted',
+                beginIndex: 0,
+                endIndex: state.visibleCount, 
+                showDeleted: true,
+            })
+
+            state.worker.postMessage({
+                topic: 'ProduceSubSet',
+                criteria: [],
+                showDeleted: state.showDeleted,
+            });
+        } else {
+            setState({
+                toggleDeletedbuttonText: 'Show Deleted',
+                beginIndex: 0,
+                endIndex: state.visibleCount,
+                showDeleted: false,
+            })
+
+            state.worker.postMessage({
+                topic: 'ProduceSubSet',
+                criteria: [],
+                showDeleted: state.showDeleted,
+            });
+        }
     },
 };
 
 const MDACSDatabaseModuleViews = {
-    Main: (props, state, setState, mutators) => {
+    Main: (props, state, setState, mutators, updaterInterface) => {
         let errorView;
 
         const prevPage = () => mutators.prevPage(props, state, setState);
         const nextPage = () => mutators.nextPage(props, state, setState);
         const onSearchChange = (e) => mutators.onSearchChange(props, state, setState, e);
         const onSearchClick = (e) => mutators.onSearchClick(props, state, setState, e);
+        const reloadData = (e) => mutators.onReloadData(props, state, setState, e);
+        const toggleDeleted = (e) => mutators.onToggleDeleted(props, state, setState, e);
 
         if (state.error !== null) {
             errorView = <Alert>{state.error}</Alert>;
@@ -249,19 +341,16 @@ const MDACSDatabaseModuleViews = {
                         <tr>
                             <td>
                                 <div style={{ margin: '0.2in' }}>
-                                    <input type="submit" onClick={prevPage} value="Prev Page"/>
+                                    <Button onClick={prevPage}>Previous Page</Button>
                                 </div>
                                 <div style={{ margin: '0.2in' }}>
-                                    <input type="submit" onClick={nextPage} value="Next Page"/>
+                                    <Button onClick={nextPage}>Next Page</Button>
                                 </div>
                             </td>
                             <td>
                                 <div>
-                                    <input
-                                        style={{ margin: '0.2in' }}
-                                        type="submit"
-                                        value="Search"
-                                        onClick={onSearchClick}/>
+                                    <Button
+                                        onClick={onSearchClick}>Search</Button>
                                     <input 
                                         onChange={onSearchChange}
                                         type="text"
@@ -275,11 +364,33 @@ const MDACSDatabaseModuleViews = {
                                     </strong>
                                 </div>
                             </td>
+                            <td>
+                                <div>
+                                    <Button onClick={reloadData}>Reload</Button>
+                                </div>
+                                <div>
+                                    <Button onClick={toggleDeleted}>{state.toggleDeletedbuttonText}</Button>
+                                </div>
+                            </td>
                         </tr>
                     </tbody>
                 </Table>;
 
-        return <Panel bsStyle="primary">
+        let statusHeader = null;
+
+        if (state.pendingOperationCount > 0) {
+            statusHeader = <span style={{ 
+                border: '1px solid black', 
+                margin: '2px', 
+                padding: '10px', 
+                backgroundColor: 'white', 
+                position: 'fixed', 
+                top: '0px' 
+            }}>Pending Updates: {state.pendingOperationCount}</span>;
+        }
+
+        return <div>
+            <Panel bsStyle="primary">
                 <Panel.Heading>
                     <Panel.Title componentClass="h3">Data View and Edit</Panel.Title>
                 </Panel.Heading>
@@ -289,12 +400,14 @@ const MDACSDatabaseModuleViews = {
             </div>
             <h3>{state.workerStatus}</h3>
             <h3>{errorView}</h3>
-            <MDACSDataView data={state.data} beginIndex={state.beginIndex} endIndex={state.endIndex} />
+            <MDACSDataView updater={updaterInterface} data={state.data} beginIndex={state.beginIndex} endIndex={state.endIndex} />
             <div>
             {bar}
             </div>
-        </Panel.Body>
-        </Panel>;
+            </Panel.Body>
+            </Panel>
+            {statusHeader}
+            </div>;
     },
 };
 
@@ -381,50 +494,81 @@ class MDACSDatabaseModule extends React.Component {
                     this.setState.bind(this),
                     e
                 );
-
-                //this.forceUpdate();
             };
+    }
+
+    setItemNote(sid, newNote) {
+        this.setState((prev, props) => {
+            return { pendingOperationCount: prev.pendingOperationCount + 1 };
+        });
+
+        this.props.dao.setNote(
+            sid, 
+            newNote, 
+            () => {
+                this.setState((prev, props) => {
+                    return { pendingOperationCount: prev.pendingOperationCount - 1 };
+                });
+            },
+            () => {
+                this.setState((prev, props) => {
+                    return { pendingOperationCount: prev.pendingOperationCount - 1 };
+                });
+            }
+        );
+    }
+
+    setItemState(sid, newState) {
+        this.setState((prev, props) => {
+            return { pendingOperationCount: prev.pendingOperationCount + 1 };
+        });
+
+        this.props.dao.setState(
+            sid, 
+            newState,
+            () => {
+                this.setState((prev, props) => {
+                    return { pendingOperationCount: prev.pendingOperationCount - 1 };
+                });
+            },
+            () => {
+                this.setState((prev, props) => {
+                    return { pendingOperationCount: prev.pendingOperationCount - 1 };
+                });
+            }
+        );
     }
 
     componentDidMount() {
         console.log('fetching data');
-        this.setState({
-            error: null,
-            data: null,
-        });
-
-        this.props.dao.data_noparse(
-            (dataString) => {
-                //dataString = generate_sample_data(10000);
-
-                console.log('data fetched', dataString);
-                this.setState({
-                    error: null,
-                    data: null,
-                });
-                this.state.worker.postMessage({
-                    topic: 'LoadDataString',
-                    dataString: dataString,
-                });
-            },
-            (res) => {
-                console.log('data fetch error', res);
-                this.setState({
-                    error: 'A problem happened when retrieving data from the server.',
-                });
-            }
-        );        
+        
+        MDACSDatabaseModuleMutators.onReloadData(
+            this.props,
+            this.state,
+            this.setState.bind(this),
+            null
+        );
     }
 
     componentWillUnmount() {
     }
 
     render() {
+        // More indirection. But, it does form an interface and that keeps anyone
+        // in the future from having a direct reference to `this` and relying 
+        // on functionality not intended to be exported as part of the updater
+        // interface.
+        let updaterInterface = {
+            setNote: this.setItemNote.bind(this),
+            setState: this.setItemState.bind(this),
+        }
+
         return MDACSDatabaseModuleViews.Main(
             this.props,
             this.state,
             this.setState.bind(this),
-            MDACSDatabaseModuleMutators
+            MDACSDatabaseModuleMutators,
+            updaterInterface
         );
     }
 }

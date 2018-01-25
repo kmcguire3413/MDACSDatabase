@@ -29,12 +29,12 @@ namespace MDACS.Database
 
             if (!auth_resp.success)
             {
-                throw new UnauthorizedException();
+                return encoder.Response(403, "Denied").SendNothing();
             }
 
             if (!auth_resp.user.can_delete)
             {
-                throw new UnauthorizedException();
+                return encoder.Response(403, "Denied").SendNothing();
             }
 
             var sreq = JsonConvert.DeserializeObject<DeleteRequest>(auth_resp.payload);
@@ -48,7 +48,7 @@ namespace MDACS.Database
                 try
                 {
                     File.Delete(item.fqpath);
-                } catch (Exception _)
+                } catch (Exception)
                 {
                     await encoder.WriteQuickHeaderAndStringBody(
                         500, "Error", JsonConvert.SerializeObject(new DeleteResponse()

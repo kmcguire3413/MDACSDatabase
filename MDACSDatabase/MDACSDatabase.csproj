@@ -18,10 +18,27 @@
 
   <ItemGroup>
     <None Remove="buildinfo.json" />
+    <None Remove="webres\index.html" />
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="webres\MDACSDataWorker.js" />
     <EmbeddedResource Include="buildinfo.json" />
+    <EmbeddedResource Include="webres\app.js" />
+    <EmbeddedResource Include="webres\bootstrap.mdacs.css" />
+    <EmbeddedResource Include="webres\daos.js" />
+    <EmbeddedResource Include="webres\index.html" />
+    <EmbeddedResource Include="webres\logo.png" />
+    <EmbeddedResource Include="webres\MDACSDatabaseModule.js" />
+    <EmbeddedResource Include="webres\MDACSItem.js" />
+    <EmbeddedResource Include="webres\MDACSLogin.js" />
+    <EmbeddedResource Include="webres\MDACSLoginApp.js" />
+    <EmbeddedResource Include="webres\MDACSServiceDirectory.js" />
+    <EmbeddedResource Include="webres\react-bootstrap.min.js" />
+    <EmbeddedResource Include="webres\react-dom.development.js" />
+    <EmbeddedResource Include="webres\react.development.js" />
+    <EmbeddedResource Include="webres\sha512.js" />
+    <EmbeddedResource Include="webres\superagent.js" />
   </ItemGroup>
 
   <ItemGroup>

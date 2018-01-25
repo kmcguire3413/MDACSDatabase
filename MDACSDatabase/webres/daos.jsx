@@ -5,6 +5,41 @@ class DatabaseNetworkDAO {
         this.dao = base_dao;
     }
 
+    setState(sid, newState, success, failure) {
+        this.setField(sid, 'state', newState, success, failure);
+    }
+
+    setNote(sid, newNote, success, failure) {
+        this.setField(sid, 'note', newNote, success, failure);
+    }
+
+    setField(sid, fieldName, fieldValue, success, failure) {
+        let obj = {
+            ops: [],
+        };
+
+        obj.ops.push({
+            sid: sid, 
+            field_name: fieldName, 
+            value: fieldValue,
+        });
+
+        this.dao.authenticatedTransaction(
+            '/commit_batch_single_ops',
+            obj,
+            (resp) => {
+                resp = JSON.parse(resp.text);
+
+                if (resp.success) {
+                    success();
+                } else {
+                    failure(null);
+                }
+            },
+            failure
+        );
+    }
+
     data(success, failure) {
         this.dao.authenticatedTransaction(
             '/data',
@@ -110,12 +145,6 @@ class AuthNetworkDAO {
     }
 
     isLoginValid(success, failure) {
-        success(null);
-
-        if (true) {
-            return;
-        }
-
         this.dao.authenticatedTransaction(
             '/is-login-valid',
             {},

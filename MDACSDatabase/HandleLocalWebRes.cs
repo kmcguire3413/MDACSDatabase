@@ -44,7 +44,7 @@ namespace MDACS.Database
                 )
             );
 #else
-            var strm = Assembly.GetExecutingAssembly().GetManifestResourceStream($"MDACSAuth.webres.{target}");
+            var strm = Assembly.GetExecutingAssembly().GetManifestResourceStream($"MDACSDatabase.webres.{target}");
 
             if (strm == null)
             {

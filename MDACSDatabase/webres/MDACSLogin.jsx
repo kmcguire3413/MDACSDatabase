@@ -47,7 +47,7 @@ const MDACSLoginView = (props, state, setState, mutators) => {
                     <ControlLabel>Password</ControlLabel>
                     <FormControl
                         id="login_password"
-                        type="text"
+                        type="password"
                         value={state.password}
                         placeholder="Enter password"
                         onChange={onPassChange}

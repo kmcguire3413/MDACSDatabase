@@ -17,19 +17,14 @@ namespace MDACS.Database
         {
             var auth = await Helpers.ReadMessageFromStreamAndAuthenticate(shandler, 1024 * 16, body);
 
-            Console.WriteLine(String.Format("auth.success={0}", auth.success));
-
             if (!auth.success)
             {
-                throw new UnauthorizedException();
+                return encoder.Response(403, "Denied").SendNothing();
             }
-
-            Console.WriteLine(String.Format("auth.payload={0}", auth.payload));
 
             var req = JsonConvert.DeserializeObject<HandleBatchSingleOpsRequest>(auth.payload);
 
             var failed = new List<BatchSingleOp>();
-
             var tasks = new List<Task<bool>>();
 
             foreach (var op in req.ops)
@@ -51,9 +46,9 @@ namespace MDACS.Database
                         }
                         catch (Exception ex)
                         {
-#if DEBUG
-                            Logger.WriteDebugString($"Failed during batch single operation. The SID was {sid}. The field name was {field_name}. The value was {value}. The error was:\n{ex}");
-#endif
+                            Logger.WriteDebugString(
+                                $"Failed during batch single operation. The SID was {sid}. The field name was {field_name}. The value was {value}. The error was:\n{ex}"
+                            );
                             failed.Add(new BatchSingleOp()
                             {
                                 field_name = field_name,
@@ -75,18 +70,14 @@ namespace MDACS.Database
 
             Task.WaitAll(tasks.ToArray());
 
-            using (var de_stream = new DoubleEndedStream())
-            {
-                var resp = new HandleBatchSingleOpsResponse();
+            var resp = new HandleBatchSingleOpsResponse();
 
-                resp.success = true;
-                resp.failed = failed.ToArray();
+            resp.success = true;
+            resp.failed = failed.ToArray();
 
-                await encoder.WriteQuickHeader(200, "OK");
-                var tmp = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(resp));
-                await encoder.BodyWriteStream(de_stream);
-                await de_stream.WriteAsync(tmp, 0, tmp.Length);
-            }
+            await encoder.Response(200, "OK")
+                .CacheControlDoNotCache()
+                .SendJsonFromObject(resp);
 
             return Task.CompletedTask;
         }

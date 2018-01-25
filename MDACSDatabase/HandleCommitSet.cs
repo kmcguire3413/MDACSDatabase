@@ -100,7 +100,7 @@ namespace MDACS.Database
                     return Task.CompletedTask;
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
 #if DEBUG
                 Logger.WriteDebugString($"Error happened when writing to journal or setting item fields during commit set operation.");

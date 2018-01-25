@@ -25,8 +25,6 @@ namespace MDACS.Database
             //    throw new UnauthorizedException();
             //}
 
-            HandleDownloadRequest req = null;
-
             String download_sid;
 
             if (request.query_string.Length > 0)
