@@ -2,13 +2,25 @@
 
 class MDACSDataItemDate extends React.Component {
     render() {
-        return this.props.value;
+        return this.props.item.jsDate.toLocaleDateString(); 
     }
 }
 
 class MDACSDataItemTime extends React.Component {
     render() {
-        return this.props.value;
+        const d = this.props.item.jsDate;
+
+        const pad2 = (v) => {
+            v = String(v);
+
+            if (v.length == 1) {
+                return '0' + v;
+            }
+
+            return v;
+        };
+
+        return pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
     }
 }
 
@@ -125,6 +137,7 @@ class MDACSDataItemState extends React.Component {
         forEachItemSet(toStateFrom, ['delete', 'keep-forever', 'unknown'], a);
         forEachItemSet(toStateFrom, ['', null, undefined], a);
         forEachItemSet(toStateFrom, ['deleted'], ['restore']);
+        forEachItemSet(toStateFrom, ['restore'], ['restore', 'deleted'])
 
         const options = [];
 
@@ -205,8 +218,8 @@ class MDACSDataItem extends React.Component {
         return <tr>
                 <td>{props.index}</td>
                 <td><MDACSDataItemState value={item.state} sid={item.security_id} updater={updater}/></td>
-                <td><MDACSDataItemDate value={item.datestr} sid={item.security_id} updater={updater}/></td>
-                <td><MDACSDataItemTime value={item.timestr} sid={item.security_id} updater={updater}/></td>
+                <td><MDACSDataItemDate item={item} sid={item.security_id} updater={updater}/></td>
+                <td><MDACSDataItemTime item={item} sid={item.security_id} updater={updater}/></td>
                 <td><MDACSDataItemUser value={item.userstr} sid={item.security_id} updater={updater}/></td>
                 <td><MDACSDataItemDevice value={item.devicestr} sid={item.security_id} updater={updater}/></td>
                 <td><Button bsSize="xsmall" bsStyle="link" onClick={onViewClick}>View [{dataType}:{childrenCount + 1}]</Button></td>

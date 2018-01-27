@@ -1,4 +1,6 @@
-const MDACSLoginAppStateGenerator = (props) => {
+let MDACSAuthLoginSwitcher = {};
+
+MDACSAuthLoginSwitcher.StateGenerator = (props) => {
     return {
         showLogin: true,
         user: null,
@@ -7,7 +9,7 @@ const MDACSLoginAppStateGenerator = (props) => {
     };
 };
 
-const MDACSLoginAppMutators = {
+MDACSAuthLoginSwitcher.Mutators = {
   onCheckLogin: (props, state, setState, username, password) => {
     state.daoAuth.setCredentials(
         username, 
@@ -31,9 +33,14 @@ const MDACSLoginAppMutators = {
   },
 };
 
-const MDACSLoginAppViews = {
+MDACSAuthLoginSwitcher.Views = {
   Main: (props, state, setState, mutators) => {
     const onCheckLogin = mutators.onCheckLogin;
+
+    const top = <div>
+                    <img src="utility?logo.png" height="128px" />
+                    <MDACSAnonFeedback postUrl="http://kmcg3413.net/mdacs_feedback.py"/>
+                </div>;
 
     if (state.showLogin) {
         let alert_area = null;
@@ -43,38 +50,39 @@ const MDACSLoginAppViews = {
         }
 
         return <div>
-            <div>
-                <img src="utility?logo.png" height="128px" />
-            </div>
-            <MDACSLogin 
+            {top}
+            <MDACSAuthLogin.ReactComponent 
                 onCheckLogin={(u, p) => onCheckLogin(props, state, setState, u, p)} 
             />
             {alert_area}
             </div>;
     } else {
-      return <MDACSServiceDirectory
+      return <div>
+                {top}
+                <MDACSDatabaseServiceDirectory.ReactComponent
                   daoDatabase={state.daoAuth.getDatabaseDAO(props.dbUrl)}
                   daoAuth={state.daoAuth}
                   authUrl={props.authUrl}
                   dbUrl={props.dbUrl}
-                  />;
+                  />
+            </div>;
     }
   },
 };
 
-class MDACSLoginApp extends React.Component {
+MDACSAuthLoginSwitcher.ReactComponent = class extends React.Component {
     constructor(props) {
         super(props);
 
-        this.state = MDACSLoginAppStateGenerator(props);
+        this.state = MDACSAuthLoginSwitcher.StateGenerator(props);
     }
 
     render() {
-      return MDACSLoginAppViews.Main(
+      return MDACSAuthLoginSwitcher.Views.Main(
         this.props,
         this.state,
         this.setState.bind(this),
-        MDACSLoginAppMutators
+        MDACSAuthLoginSwitcher.Mutators
       );
     }
 }

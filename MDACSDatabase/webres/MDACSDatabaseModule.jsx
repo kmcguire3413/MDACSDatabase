@@ -1,25 +1,70 @@
-/*
-      MDACSLoginApp
-        Login
-        LoggedIn
-          // Controls what major panel is displayed.
-          MDACSServiceDirectory
-            AuthServicePanel
-              *
-            StorageJugglerPanel
-              *
-            DatabaseServicePanel
-              DeviceConfigurationList
-                DeviceConfiguration
-              DataItemSearch
-              DataItemList
-                DataItem
-                  DataItemDateTime
-                  DataItemUser
-                  DataItemDevice
-                  DataItemNote
-                  DataItemControls
-*/
+function generate_sample_data(count) {
+    function padleftzero(v) {
+        if (v.length == 1) {
+            return '0' + v;
+        }
+
+        return v;
+    }
+
+    function cf(l) {
+        let m = Math.floor(Math.random() * l.length);
+
+        return l[m];
+    }
+
+    let users = [
+        'bob',
+        'mark',
+        'jill',
+        'bill',
+        'bryan',
+        'josh',
+        'kevin',
+        'sue',
+        'beth',
+        'alicia',
+        'jasmine',
+    ];
+
+    let devices = [
+        'gopro3029',
+        'bodycam45',
+        'laptop293',
+        'upload',
+        'gopro3832',
+        'bodycam86',
+    ];
+
+    let tmp = [];
+
+    for (let x = 0; x < count; ++x) {
+        let year = padleftzero(Math.floor(Math.random() * 2000 + 1900).toString());
+        let month = padleftzero(Math.floor(Math.random() * 12 + 1).toString());
+        let day = padleftzero(Math.floor(Math.random() * 25 + 1).toString());
+        let hour = padleftzero(Math.floor(Math.random() * 24).toString());
+        let minute = padleftzero(Math.floor(Math.random() * 60).toString());
+        let second = padleftzero(Math.floor(Math.random() * 60).toString());
+
+        let item = {
+            datestr: year + month + day,
+            timestr: hour + minute + second,
+            userstr: cf(users),
+            devicestr: cf(devices),
+            note: '',
+            security_id: x,
+            state: 'Auto-Purge 90-Days Then Cloud 180-Days',
+        };
+
+        tmp.push(item);
+    }
+
+    tmp = {
+        data: tmp,
+    };
+
+    return JSON.stringify(tmp);
+}
 
 class MDACSDataViewSummary extends React.Component {
     constructor(props) {
@@ -48,97 +93,10 @@ class MDACSConfigurationList extends React.Component {
     }
 }
 
-/// <prop name="viewer">The object with callable methods for viewing items.</prop>
-/// <prop name="updater">The object with callable methods for updating data.</prop>
-/// <prop name="beginIndex">Only for visual purposes, if needed.</prop>
-/// <prop name="endIndex">Only for visual purposes, if needed.</prop>
-/// <prop name="data">Used to render the items. The entire data array is rendered.</prop>
-class MDACSDataView extends React.Component {
-    constructor(props) {
-        super(props)
-    }
-
-    shouldComponentUpdate(nextProps, nextState) {
-        let nextData = nextProps.data;  
-        let curData = this.props.data;
-
-        if (curData === null && nextData === null) {
-            return false;
-        }
-
-        if (curData === null || nextData === null) {
-            return true;
-        }
-
-        if (curData.length !== nextData.length) {
-            return true;
-        }
-
-        for (let x = 0; x < curData.length; ++x) {
-            if (curData[x] !== nextData[x]) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    render() {
-        let props = this.props;
-        let data = props.data;
-        let beginIndex = props.beginIndex;
-        let endIndex = props.endIndex;
-
-        if (data === null) {
-            return <div>No data.</div>;
-        }
-
-        let tmp = [];
-
-        for (let x = 0; x < data.length; ++x) {
-            let item = data[x];
-
-            if (item !== undefined && item !== null) {
-                console.log(item.state, item.datestr, item.timestr, item.userstr, item.devicestr);
-                tmp.push(<MDACSDataItem 
-                            viewer={props.viewer} 
-                            updater={props.updater} 
-                            index={x + beginIndex} 
-                            key={item.security_id} 
-                            item={item}/>);
-            }
-        }
-
-        let footer = null;
-
-        if (tmp.length === 0) {
-            footer = <div>No items from {beginIndex} to {endIndex - 1}.</div>;
-        }
-
-        return  <div style={{backgroundColor: 'white'}}>
-                <Table striped bordered>
-                    <thead>
-                        <tr>
-                            <td>Index</td>
-                            <td>State</td>
-                            <td>Date</td>
-                            <td>Time</td>
-                            <td>User</td>
-                            <td>Device</td>
-                            <td>View</td>
-                            <td style={{width: '100%'}}>Note</td>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {tmp}
-                    </tbody>
-                </Table>
-                {footer}
-                </div>;
-    }
-}
-
-const MDACSDatabaseModuleStateGenerator = (props) => {
+/// <summary>
+/// Generate the initial state for the MDACSDataModule component.
+/// </summary>
+const MDACSDatabaseModuleStateGenerator = (props, setState) => {
     let state = {
         data: null,
         error: null,
@@ -157,9 +115,23 @@ const MDACSDatabaseModuleStateGenerator = (props) => {
         itemViewStuff: null,
     };
 
+    // Hook up mutator to the worker message handler.
+    state.worker.onmessage = 
+        (e) => {
+            MDACSDatabaseModuleMutators.onWorkerMessage(
+                props,
+                state,
+                setState,
+                e
+            );
+        };
+
     return state;
 };
 
+/// <summary>
+/// A set of functions that mutate the state of the MDACSDataModule.
+/// </summary>
 const MDACSDatabaseModuleMutators = {
     onWorkerMessage: (props, state, setState, e) => {
         let msg = e.data;
@@ -322,6 +294,71 @@ const MDACSDatabaseModuleMutators = {
             });
         }
     },
+    setItemState: (props, state, setState, sid, newState) => {
+        setState((prev, props) => {
+            return { pendingOperationCount: prev.pendingOperationCount + 1 };
+        });
+
+        state.worker.postMessage({
+            topic: 'SetState',
+            sid: sid,
+            value: newState,
+        });        
+
+        props.dao.setState(
+            sid, 
+            newState,
+            () => {
+                setState((prev, props) => {
+                    return { pendingOperationCount: prev.pendingOperationCount - 1 };
+                });
+            },
+            () => {
+                setState((prev, props) => {
+                    return { pendingOperationCount: prev.pendingOperationCount - 1 };
+                });
+            }
+        );
+    },
+    setItemNote: (props, state, setState, sid, newNote) => {
+        setState((prev, props) => {
+            return { pendingOperationCount: prev.pendingOperationCount + 1 };
+        });
+
+        state.worker.postMessage({
+            topic: 'SetNote',
+            sid: sid,
+            value: newNote,
+        });
+
+        props.dao.setNote(
+            sid, 
+            newNote, 
+            () => {
+                setState((prev, props) => {
+                    return { pendingOperationCount: prev.pendingOperationCount - 1 };
+                });
+            },
+            () => {
+                setState((prev, props) => {
+                    return { pendingOperationCount: prev.pendingOperationCount - 1 };
+                });
+            }
+        );
+    },
+    viewItemStack: (props, state, setState, item) => {
+        let itemsUnstacked = [];
+
+        itemsUnstacked.push(item);
+
+        for (let x = 0; x < item.children.length; ++x) {
+            itemsUnstacked.push(item.children[x]);
+        }
+
+        setState({
+            currentlyViewingItems: itemsUnstacked,
+        });  
+    },
 };
 
 const MDACSDatabaseModuleViews = {
@@ -334,12 +371,29 @@ const MDACSDatabaseModuleViews = {
         const onSearchClick = (e) => mutators.onSearchClick(props, state, setState, e);
         const reloadData = (e) => mutators.onReloadData(props, state, setState, e);
         const toggleDeleted = (e) => mutators.onToggleDeleted(props, state, setState, e);
+        const onClearSearch = (e) => {
+            e.preventDefault();
+
+            setState({
+                searchValue: '',
+            });
+
+            state.worker.postMessage({
+                topic: 'ProduceSubSet',
+                criteria: [],
+                showDeleted: state.showDeleted,
+            });                
+        };
+
+        ///////////////////////////////////////////////
 
         if (state.error !== null) {
             errorView = <Alert>{state.error}</Alert>;
         } else {
             errorView = null;
         }
+
+        ///////////////////////////////////////////////
 
         let bar = <Table>
                     <thead>
@@ -363,6 +417,7 @@ const MDACSDatabaseModuleViews = {
                                 <div>
                                     <form onSubmit={onSearchClick}>                                        
                                         <Button type="submit">Search</Button>
+                                        <Button onClick={onClearSearch}>Clear Search</Button>
                                         <FormControl
                                             id="searchText"
                                             type="text"
@@ -391,6 +446,8 @@ const MDACSDatabaseModuleViews = {
                     </tbody>
                 </Table>;
 
+        ///////////////////////////////////////////////
+
         let statusHeader = null;
 
         if (state.pendingOperationCount > 0) {
@@ -403,6 +460,8 @@ const MDACSDatabaseModuleViews = {
                 top: '0px' 
             }}>Pending Updates: {state.pendingOperationCount}</span>;
         }
+
+        ///////////////////////////////////////////////
 
         let dataViewPanel = <div>
                 <Panel bsStyle="primary">
@@ -429,229 +488,36 @@ const MDACSDatabaseModuleViews = {
                 {statusHeader}
             </div>;
 
-        let buttonsForItems = [];
-
-        if (state.currentlyViewingItems !== null) {
-            function buildHandler(i) {
-                return (e, i) => {
-                    e.preventDefault();
-
-                    const src = props.dao.getDownloadUrl(i.security_id);
-
-                    if (i.datatype === 'mp4') {
-                        setState({
-                            itemViewStuff: <div>
-                                    MP4 {i.datestr} {i.timestr}
-                                    <video style={{ width: '100%', height: '100%' }} src={src} controls="true"/>
-                                </div>
-                        });
-                    } else if (i.datatype === 'jpg') {
-                        setState({
-                            itemViewStuff: <div>
-                                JPG IMAGE {i.datestr} {i.timestr}
-                                <img style={{ width: '100%', height: '100%' }} src={src}/>
-                            </div>
-                        });
-                    } else {
-                        setState({
-                            itemViewStuff: <a href={src}>Download</a>
-                        });
-                    }
-                };
-            }
-
-            for (let x = 0; x < state.currentlyViewingItems.length; ++x) {
-                let i = state.currentlyViewingItems[x];
-
-                let handler = buildHandler(i);
-
-                buttonsForItems.push(<Button key={i.security_id} onClick={(e) => handler(e, i)}>#{x}</Button>);
-            }
-        }
-
         const goBack = (e) => {
             e.preventDefault();
 
             setState({
                 currentlyViewingItems: null,
-                itemViewPanel: null,
             });
         };
-        
-        let itemViewPanel = <div>
-            <Panel bsStyle="primary">
-                <Panel.Heading>
-                    <Panel.Title componentClass="h3">Data View and Edit</Panel.Title>
-                </Panel.Heading>
-                <Panel.Body>
-                    <div>
-                        <Button onClick={goBack}>Exit</Button>
-                    </div>
-                    <Panel>
-                        {buttonsForItems}
-                    </Panel>
-                    {state.itemViewStuff}
-                </Panel.Body>            
-            </Panel>
-            {statusHeader}
-        </div>;
 
-        // Split these into separate components eventually. For now, PUSH forward
-        // for a demonstration with Chief and Wilhoit.
         if (state.currentlyViewingItems === null) {
             return dataViewPanel;
         } else {
-            return itemViewPanel;
+            // The panel for displaying single or stacked items. The stacked items are unstacked
+            // and ordered from first to last as the value to the property `items`.
+            return <MDACSItemsView goBack={goBack} dao={props.dao} items={state.currentlyViewingItems}/>;
         }
 
     },
 };
-
-function generate_sample_data(count) {
-    function padleftzero(v) {
-        if (v.length == 1) {
-            return '0' + v;
-        }
-
-        return v;
-    }
-
-    function cf(l) {
-        let m = Math.floor(Math.random() * l.length);
-
-        return l[m];
-    }
-
-    let users = [
-        'bob',
-        'mark',
-        'jill',
-        'bill',
-        'bryan',
-        'josh',
-        'kevin',
-        'sue',
-        'beth',
-        'alicia',
-        'jasmine',
-    ];
-
-    let devices = [
-        'gopro3029',
-        'bodycam45',
-        'laptop293',
-        'upload',
-        'gopro3832',
-        'bodycam86',
-    ];
-
-    let tmp = [];
-
-    for (let x = 0; x < count; ++x) {
-        let year = padleftzero(Math.floor(Math.random() * 2000 + 1900).toString());
-        let month = padleftzero(Math.floor(Math.random() * 12 + 1).toString());
-        let day = padleftzero(Math.floor(Math.random() * 25 + 1).toString());
-        let hour = padleftzero(Math.floor(Math.random() * 24).toString());
-        let minute = padleftzero(Math.floor(Math.random() * 60).toString());
-        let second = padleftzero(Math.floor(Math.random() * 60).toString());
-
-        let item = {
-            datestr: year + month + day,
-            timestr: hour + minute + second,
-            userstr: cf(users),
-            devicestr: cf(devices),
-            note: '',
-            security_id: x,
-            state: 'Auto-Purge 90-Days Then Cloud 180-Days',
-        };
-
-        tmp.push(item);
-    }
-
-    tmp = {
-        data: tmp,
-    };
-
-    return JSON.stringify(tmp);
-}
 
 /// <prop name="dao">DAO for the database service.</prop>
 class MDACSDatabaseModule extends React.Component {
     constructor(props) {
         super(props);
 
-        this.state = MDACSDatabaseModuleStateGenerator(props);
+        const boundSetState = this.setState.bind(this);
 
-        this.state.worker.onmessage = 
-            (e) => {
-                MDACSDatabaseModuleMutators.onWorkerMessage(
-                    props,
-                    this.state,
-                    this.setState.bind(this),
-                    e
-                );
-            };
-    }
-
-    setItemNote(sid, newNote) {
-        this.setState((prev, props) => {
-            return { pendingOperationCount: prev.pendingOperationCount + 1 };
-        });
-
-        this.props.dao.setNote(
-            sid, 
-            newNote, 
-            () => {
-                this.setState((prev, props) => {
-                    return { pendingOperationCount: prev.pendingOperationCount - 1 };
-                });
-            },
-            () => {
-                this.setState((prev, props) => {
-                    return { pendingOperationCount: prev.pendingOperationCount - 1 };
-                });
-            }
-        );
-    }
-
-    setItemState(sid, newState) {
-        this.setState((prev, props) => {
-            return { pendingOperationCount: prev.pendingOperationCount + 1 };
-        });
-
-        this.props.dao.setState(
-            sid, 
-            newState,
-            () => {
-                this.setState((prev, props) => {
-                    return { pendingOperationCount: prev.pendingOperationCount - 1 };
-                });
-            },
-            () => {
-                this.setState((prev, props) => {
-                    return { pendingOperationCount: prev.pendingOperationCount - 1 };
-                });
-            }
-        );
-    }
-
-    viewItemStack(item) {
-        let itemsUnstacked = [];
-
-        itemsUnstacked.push(item);
-
-        for (let x = 0; x < item.children.length; ++x) {
-            itemsUnstacked.push(item.children[x]);
-        }
-
-        this.setState({
-            currentlyViewingItems: itemsUnstacked,
-        });
+        this.state = MDACSDatabaseModuleStateGenerator(props, boundSetState);
     }
 
     componentDidMount() {
-        console.log('fetching data');
-        
         MDACSDatabaseModuleMutators.onReloadData(
             this.props,
             this.state,
@@ -668,13 +534,40 @@ class MDACSDatabaseModule extends React.Component {
         // in the future from having a direct reference to `this` and relying 
         // on functionality not intended to be exported as part of the updater
         // interface.
+
+        const boundSetState = this.setState.bind(this);
+        const props = this.props;
+        const state = this.state;
+
         let updaterInterface = {
-            setNote: this.setItemNote.bind(this),
-            setState: this.setItemState.bind(this),
+            setNote: (sid, newNote) =>
+                MDACSDatabaseModuleMutators.setItemNote(
+                    props, 
+                    state,
+                    boundSetState,
+                    sid,
+                    newNote
+                )
+            ,
+            setState: (sid, newState) =>
+                MDACSDatabaseModuleMutators.setItemState(
+                    props,
+                    state,
+                    boundSetState,
+                    sid,
+                    newState
+                )
+            ,
         }
 
         let viewerInterface = {
-            viewItemStack: this.viewItemStack.bind(this),
+            viewItemStack: (item) =>
+                MDACSDatabaseModuleMutators.viewItemStack(
+                    props,
+                    state,
+                    boundSetState,
+                    item
+                ),
         };
 
         return MDACSDatabaseModuleViews.Main(

@@ -1,8 +1,10 @@
+let MDACSAuthLogin = {};
+
 /// <summary>
 /// Initial model
 /// </summary>
 /// <pure/>
-const MDACSLoginInitialState = {
+MDACSAuthLogin.InitialState = {
     username: '',
     password: '',
 };
@@ -11,7 +13,7 @@ const MDACSLoginInitialState = {
 /// Controller/Mutator
 /// </summary>
 /// <pure/>
-const MDACSLoginMutators = {
+MDACSAuthLogin.Mutators = {
     onUserChange: (e, props, state, setState) => setState({ username: e.target.value }),
     onPassChange: (e, props, state, setState) => setState({ password: e.target.value }),
     onSubmit: (e, props, state, setState) => {
@@ -27,7 +29,7 @@ const MDACSLoginMutators = {
 /// View
 /// </summary>
 /// <pure/>
-const MDACSLoginView = (props, state, setState, mutators) => {
+MDACSAuthLogin.View = (props, state, setState, mutators) => {
     let onUserChange = (e) => mutators.onUserChange(e, props, state, setState);
     let onPassChange = (e) => mutators.onPassChange(e, props, state, setState);
     let onSubmit = (e) => mutators.onSubmit(e, props, state, setState);
@@ -63,18 +65,18 @@ const MDACSLoginView = (props, state, setState, mutators) => {
 /// <summary>
 /// </summary>
 /// <prop-event name="onCheckLogin(username, password)">Callback when login should be checked.</prop-event>
-class MDACSLogin extends React.Component {
+MDACSAuthLogin.ReactComponent = class extends React.Component {
     constructor(props) {
         super(props);
-        this.state = MDACSLoginInitialState;
+        this.state = MDACSAuthLogin.InitialState;
     }
 
     render() {
-        return MDACSLoginView(
+        return MDACSAuthLogin.View(
             this.props,
             this.state,
             this.setState.bind(this),
-            MDACSLoginMutators
+            MDACSAuthLogin.Mutators
         );
     }
 }
