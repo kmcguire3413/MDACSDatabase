@@ -12,6 +12,7 @@ using System.Security.Cryptography;
 using static MDACS.API.Database;
 using Newtonsoft.Json.Linq;
 using MDACSAPI;
+using System.Net;
 
 namespace MDACS.Database
 {
@@ -28,6 +29,12 @@ namespace MDACS.Database
         private long used_space;
         private long max_storage_space;
 
+        /// <summary>
+        /// This URL represents the service to handle item upload notifications. On
+        /// successful item upload a notification will be posted to this URL.
+        /// </summary>
+        private string notification_post_url;
+
         public ServerHandler(
             string metajournal_path,
             string data_path,
@@ -37,9 +44,10 @@ namespace MDACS.Database
             string universal_records_key_pass,
             string universal_records_url,
             int cluster_size,
-            long max_storage_space
-        )
+            long max_storage_space,
+            string notification_post_url)
         {
+            this.notification_post_url = notification_post_url;
             this.data_path = data_path;
             this.config_path = config_path;
             this.auth_url = auth_url;
@@ -295,5 +303,34 @@ namespace MDACS.Database
 
             return true;
         }
+
+        /// <summary>
+        /// Handles any needed work after a successful upload of an item.
+        /// </summary>
+        public async Task HouseworkAfterUploadSuccess(Item item) {
+            if (this.notification_post_url == null) {
+                return;
+            }
+
+            var req = WebRequest.Create($"{this.notification_post_url}/item-upload-success");
+
+            req.Method = "POST";
+            req.ContentType = "text/json";
+
+            var payload = Encoding.UTF8.GetBytes(
+                JsonConvert.SerializeObject(item)
+            );
+
+            var data = await req.GetRequestStreamAsync();
+            
+            await data.WriteAsync(payload, 0, payload.Length);
+            
+            data.Close();
+
+            var resp = await req.GetResponseAsync();
+            var data_out = resp.GetResponseStream();
+            // No need to read the response stream, unless, we desired to retry
+            // on an error.
+        }        
     }
 }

@@ -113,7 +113,6 @@ namespace MDACS.Database
 
             var payload = auth_package.payload;
 
-            Console.WriteLine($"shandler.auth_url={shandler.auth_url} auth_package={auth_package.payload}");
 
             /*var info = await MDACS.API.Auth.AuthenticateMessageAsync(shandler.auth_url, auth_package);
 
@@ -125,18 +124,10 @@ namespace MDACS.Database
 
             var hdr = JsonConvert.DeserializeObject<MDACS.API.Requests.UploadHeader>(payload);
 
-            // tndx=10
-            // tndx+1=11
-            // bufndx=20
-
-            // 20 - 11 = 9
-            // bufndx=9
-
             Array.Copy(buf, tndx + 1, buf, 0, bufndx - (tndx + 1));
             // Quasi-repurpose the variable `bufndx` to mark end of the slack data.
             bufndx = bufndx - (tndx + 1);
 
-            //
             var data_node = String.Format("{0}_{1}_{2}_{3}.{4}",
                 hdr.datestr,
                 hdr.userstr,
@@ -301,6 +292,11 @@ namespace MDACS.Database
 
             await encoder.WriteQuickHeader(200, "OK");
             await encoder.BodyWriteSingleChunk(JsonConvert.SerializeObject(uresponse));
+
+            // Allow current execution to continue while spinning off the
+            // a handler for this successful upload.
+            shandler.HouseworkAfterUploadSuccess(item);
+
             return Task.CompletedTask;
         }
     }
