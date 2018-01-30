@@ -31,6 +31,16 @@ namespace MDACS.Database
             {
                 var sid = op.sid;
                 var field_name = op.field_name;
+                
+                if (!await shandler.FieldModificationValidForUser(auth.user, field_name)) {
+                    return encoder.Response(403, $"Denied Change On Field {field_name}").SendNothing();
+                }
+            }
+
+            foreach (var op in req.ops)
+            {
+                var sid = op.sid;
+                var field_name = op.field_name;
                 var value = op.value;
 
                 lock (shandler.items)

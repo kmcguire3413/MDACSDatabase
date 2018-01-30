@@ -13,6 +13,7 @@ using static MDACS.API.Database;
 using Newtonsoft.Json.Linq;
 using MDACSAPI;
 using System.Net;
+using static MDACS.API.Auth;
 
 namespace MDACS.Database
 {
@@ -299,6 +300,14 @@ namespace MDACS.Database
             else
             {
                 items.Add(item.security_id, item);
+            }
+
+            return true;
+        }
+
+        public async Task<bool> FieldModificationValidForUser(User user, string field) {
+            if (!user.admin && !field.Equals("note")) {
+                return false;
             }
 
             return true;

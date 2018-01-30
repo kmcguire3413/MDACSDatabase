@@ -76,6 +76,15 @@ namespace MDACS.Database
                 return Task.CompletedTask;
             }
 
+            // Check fields to see if the user is authorized to modify them.
+            foreach (var pair in sreq.meta) {
+                if (!await shandler.FieldModificationValidForUser(auth_resp.user, pair.Key)) {
+                    await encoder.WriteQuickHeader(403, "Not Authorized");
+                    await encoder.BodyWriteSingleChunk("");
+                    return Task.CompletedTask;
+                }
+            }
+
             try
             {
                 foreach (var pair in sreq.meta)
@@ -83,6 +92,7 @@ namespace MDACS.Database
                     // Reflection simplified coding time at the expense of performance.
                     var field = item.GetType().GetField(pair.Key);
                     field.SetValue(item, pair.Value.ToObject(field.FieldType));
+
 #if DEBUG
                     Logger.WriteDebugString($"Set field {field} of {sreq.meta} to {pair.Value.ToString()}.");
 #endif                    
