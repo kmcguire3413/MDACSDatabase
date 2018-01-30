@@ -57,6 +57,7 @@ namespace MDACS.Database
                     auth_url = "The HTTP or HTTPS URL to the authentication service.",
                     ssl_cert_path = "The PFX file that contains both the private and public keys for communications.",
                     universal_records_key_path = "The PFX file for the universal records system.",
+                    notification_url = "Use null or the URL for the notification service.",
                     port = 34001,
                 };
 
@@ -83,10 +84,9 @@ namespace MDACS.Database
                 max_storage_space: (long)1024 * 1024 * 1024 * 680,
                 universal_records_key_path: cfg.universal_records_key_path,
                 universal_records_key_pass: cfg.universal_records_key_pass,
-                universal_records_url: cfg.universal_records_url
+                universal_records_url: cfg.universal_records_url,
+                notification_post_url: cfg.notification_url
             );
-
-            //var server = new HTTPServer<ServerHandler>(handler, cfg.ssl_cert_path, cfg.ssl_cert_pass);
 
             var handlers = new Dictionary<String, SimpleServer<ServerHandler>.SimpleHTTPHandler>();
 
@@ -103,6 +103,7 @@ namespace MDACS.Database
             handlers.Add("/version", HandleVersion.Action);
             handlers.Add("/", HandleLocalWebRes.Index);
             handlers.Add("/utility", HandleLocalWebRes.Utility);
+            handlers.Add("/get-config", HandleConfigRequest.Action);
 
             var server = SimpleServer<ServerHandler>.Create(
                 handler,
@@ -117,10 +118,8 @@ namespace MDACS.Database
                 server.Wait();
             });
 
-
             a.Start();
             a.Join();
-
 
             // Please do not let me forget this convulted retarded sequence to get from PEM to PFX with the private key.
             // openssl crl2pkcs7 -nocrl -inkey privkey.pem -certfile fullchain.pem -out test.p7b

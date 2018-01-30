@@ -15,5 +15,6 @@ namespace MDACS.Database
         public string universal_records_key_pass;
         public string universal_records_url;
         public ushort port;
+        public string notification_url;
     }
 }

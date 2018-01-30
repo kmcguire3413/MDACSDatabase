@@ -12,34 +12,9 @@
     <DefineConstants>TRACE;DEBUG;NETCOREAPP2_0;USE_SOURCE_DIRECTORY_WEBRES</DefineConstants>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+  <PropertyGroup Condition="'$(Configuration)'=='Release'">
     <DefineConstants>NETCOREAPP2_0</DefineConstants>
   </PropertyGroup>  
-
-  <ItemGroup>
-    <None Remove="buildinfo.json" />
-    <None Remove="webres\index.html" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <EmbeddedResource Include="webres\MDACSDataWorker.js" />
-    <EmbeddedResource Include="buildinfo.json" />
-    <EmbeddedResource Include="webres\app.js" />
-    <EmbeddedResource Include="webres\bootstrap.mdacs.css" />
-    <EmbeddedResource Include="webres\daos.js" />
-    <EmbeddedResource Include="webres\index.html" />
-    <EmbeddedResource Include="webres\logo.png" />
-    <EmbeddedResource Include="webres\MDACSDatabaseModule.js" />
-    <EmbeddedResource Include="webres\MDACSItem.js" />
-    <EmbeddedResource Include="webres\MDACSLogin.js" />
-    <EmbeddedResource Include="webres\MDACSLoginApp.js" />
-    <EmbeddedResource Include="webres\MDACSServiceDirectory.js" />
-    <EmbeddedResource Include="webres\react-bootstrap.min.js" />
-    <EmbeddedResource Include="webres\react-dom.development.js" />
-    <EmbeddedResource Include="webres\react.development.js" />
-    <EmbeddedResource Include="webres\sha512.js" />
-    <EmbeddedResource Include="webres\superagent.js" />
-  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="10.0.3" />
@@ -49,7 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\MDACSHTTPServer\MDACSHTTPServer.csproj" />
-    <ProjectReference Include="..\MDACSAPI\MDACSAPI.csproj" />
+    <ProjectReference Include="..\..\MDACSAPI\MDACSAPI.csproj" />
   </ItemGroup>
 
   <ItemGroup>
