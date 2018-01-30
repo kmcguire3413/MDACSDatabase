@@ -78,21 +78,28 @@ def compile_jsx_and_concat(pdir):
 		
 		if node_base == 'app':
 			continue
+
+		pd = [
+			(os.path.join(pdir, 'package.js'), 'a'),
+		]
+
+		if node_base == 'daos':
+			pd.append(
+				(os.path.join(pdir, 'daos.js'), 'a')
+			)
 		
 		jsx_to_js(
 			os.path.join(pdir, node), 
-			[
-				(os.path.join(pdir, 'app.js'), 'a'),
-				(os.path.join(pdir, '%s.js' % node_base), 'w'),
-			]
+			pd
 		)
 	
 	if os.path.exists(os.path.join(pdir, 'app.jsx')):
 		jsx_to_js(
 			os.path.join(pdir, 'app.jsx'), 
 			[
-				(os.path.join(pdir, 'app.js'), 'a'),
+				(os.path.join(pdir, 'package.js'), 'a'),
 			]
 		)	
 
-compile_jsx_and_concat('./webres')
+# The webres was moved to MDACSApp.
+#compile_jsx_and_concat('./webres')
