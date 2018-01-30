@@ -147,7 +147,7 @@ namespace MDACS.Database
             {
                 // TODO: Add runtime overflow check. But, how likely is it to have a datasize > 2 ** 63?
                 // TODO: Unless using the automatic overflow checks will catch this problem?
-                if (item.Value.fqpath != null && item.Value.fqpath.Length > 0)
+                if (item.Value.fqpath != null && item.Value.fqpath.Length > 0 && item.Value.state.IndexOf("delete") != 0)
                 {
                     if (File.Exists(item.Value.fqpath))
                     {
