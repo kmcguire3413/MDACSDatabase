@@ -1,0 +1,6 @@
+[submodule "MDACSHTTPServer"]
+	path = MDACSHTTPServer
+	url = https://github.com/kmcguire3413/MDACSHTTPServer.git
+[submodule "MDACSAPI"]
+	path = MDACSAPI
+	url = https://github.com/kmcguire3413/MDACSAPI.git
