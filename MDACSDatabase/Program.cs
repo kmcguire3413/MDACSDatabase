@@ -13,6 +13,7 @@ using System.Net.Security;
 using MDACS.Server;
 using Newtonsoft.Json.Linq;
 using MDACSAPI;
+using System.Diagnostics;
 
 namespace MDACS.Database
 {
@@ -33,7 +34,7 @@ namespace MDACS.Database
                 var msg = item["value"].ToObject<string>();
                 var source = item["stack"].ToObject<string[]>();
 
-                Console.WriteLine($"{source[0]}: {msg}");
+                Debug.WriteLine($"{source[0]}: {msg}");
             }
         }
 

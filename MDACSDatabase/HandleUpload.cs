@@ -10,6 +10,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using static MDACS.API.Database;
+using System.Diagnostics;
 
 namespace MDACS.Database
 {
@@ -51,7 +52,7 @@ namespace MDACS.Database
                 fpc.Dispose();
                 await Task.Delay(500);
 
-                Console.WriteLine($"fsize={fsize} size={size}");
+                Debug.WriteLine($"fsize={fsize} size={size}");
 
                 if (fsize > size)
                 {
@@ -62,7 +63,7 @@ namespace MDACS.Database
                 (DateTime.Now - st).TotalMinutes < minutes
             );
 
-            Console.WriteLine($"fsize={fsize} size={size}");
+            Debug.WriteLine($"fsize={fsize} size={size}");
 
             if (fsize != size)
             {
@@ -107,7 +108,7 @@ namespace MDACS.Database
 
             var hdrstr = Encoding.UTF8.GetString(buf, 0, tndx).Trim();
 
-            Console.WriteLine(hdrstr);
+            Debug.WriteLine(hdrstr);
 
             var auth_package = JsonConvert.DeserializeObject<MDACS.API.Auth.Msg>(hdrstr);
 
@@ -175,7 +176,7 @@ namespace MDACS.Database
                         break;
                     }
 
-                    Console.WriteLine($"buf={buf} _cnt={_cnt}");
+                    Debug.WriteLine($"buf={buf} _cnt={_cnt}");
 
                     // https://stackoverflow.com/questions/20634827/how-to-compute-hash-of-a-large-file-chunk
                     hasher.TransformBlock(buf, 0, _cnt, null, 0);

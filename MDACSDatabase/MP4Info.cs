@@ -4,6 +4,7 @@ using System.IO;
 using System.Net;
 using System.Text;
 using System.Threading;
+using System.Diagnostics;
 
 namespace MDACS.Database.MediaTools
 {
@@ -93,7 +94,7 @@ namespace MDACS.Database.MediaTools
                     br.BaseStream.Seek(atom.offset, SeekOrigin.Begin);
                     var mvhdinfo = new MVHDInfo(br);
 
-                    //Console.WriteLine($"{mvhdinfo.duration} {mvhdinfo.time_scale}");
+                    //Debug.WriteLine($"{mvhdinfo.duration} {mvhdinfo.time_scale}");
 
                     // Use double to ensure fractional seconds are represented.
                     return (double)mvhdinfo.duration / (double)mvhdinfo.time_scale;
@@ -108,7 +109,7 @@ namespace MDACS.Database.MediaTools
                             br.BaseStream.Seek(satom.offset, SeekOrigin.Begin);
                             var mvhdinfo = new MVHDInfo(br);
 
-                            //Console.WriteLine($"{mvhdinfo.duration} {mvhdinfo.time_scale}");
+                            //Debug.WriteLine($"{mvhdinfo.duration} {mvhdinfo.time_scale}");
 
                             // Use double to ensure fractional seconds are represented.
                             return (double)mvhdinfo.duration / (double)mvhdinfo.time_scale;

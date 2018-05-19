@@ -6,6 +6,7 @@ using System.Text;
 using System.IO;
 using static MDACS.API.Auth;
 using static MDACS.API.Database;
+using System.Diagnostics;
 
 namespace MDACS.Database
 {
@@ -19,7 +20,7 @@ namespace MDACS.Database
             var a = input_stream.CanRead;
             var b = input_stream.CanTimeout;
 
-            Console.WriteLine("Reading authenticated payload.");
+            Debug.WriteLine("Reading authenticated payload.");
 
             while (pos < buf.Length)
             {
@@ -33,18 +34,18 @@ namespace MDACS.Database
                 pos += cnt;
             }
 
-            Console.WriteLine("Done reading authenticated payload.");
+            Debug.WriteLine("Done reading authenticated payload.");
 
             var buf_utf8_string = Encoding.UTF8.GetString(buf, 0, pos);
 
-            Console.WriteLine(buf_utf8_string);
+            Debug.WriteLine(buf_utf8_string);
 
             var resp = await MDACS.API.Auth.AuthenticateMessageAsync(
                 shandler.auth_url,
                 buf_utf8_string
             );
 
-            Console.WriteLine("Handing back result from authenticated payload.");
+            Debug.WriteLine("Handing back result from authenticated payload.");
 
             return resp;
         }

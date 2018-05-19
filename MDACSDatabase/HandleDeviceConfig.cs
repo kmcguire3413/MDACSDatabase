@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
+using System.Diagnostics;
 
 namespace MDACS.Database
 {
@@ -76,7 +77,7 @@ namespace MDACS.Database
             resp.success = true;
             resp.config_data = JsonConvert.SerializeObject(tmp);
 
-            Console.WriteLine($"@@@@@ {resp.config_data}");
+            Debug.WriteLine($"@@@@@ {resp.config_data}");
 
             await encoder.WriteQuickHeader(200, "OK");
             await encoder.BodyWriteSingleChunk(JsonConvert.SerializeObject(resp));

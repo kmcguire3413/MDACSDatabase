@@ -14,6 +14,7 @@ using Newtonsoft.Json.Linq;
 using MDACSAPI;
 using System.Net;
 using static MDACS.API.Auth;
+using System.Diagnostics;
 
 namespace MDACS.Database
 {
@@ -69,7 +70,7 @@ namespace MDACS.Database
 
             var hasher = MD5.Create();
 
-            Console.WriteLine("Reading journal into memory.");
+            Debug.WriteLine("Reading journal into memory.");
 
             long line_no = 0;
 
@@ -107,7 +108,7 @@ namespace MDACS.Database
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine(ex.ToString());
+                    Debug.WriteLine(ex.ToString());
                     continue;
                 }
 
@@ -125,7 +126,7 @@ namespace MDACS.Database
                     {
                         var dur = MDACS.Database.MediaTools.MP4Info.GetDuration(metaitem.fqpath);
 
-                        Console.WriteLine($"{metaitem.fqpath} {dur}");
+                        Debug.WriteLine($"{metaitem.fqpath} {dur}");
 
                         metaitem.duration = dur;
                     }
@@ -182,7 +183,7 @@ namespace MDACS.Database
                     }
                 }
             }
-            Console.WriteLine("Done reading journal into memory.");
+            Debug.WriteLine("Done reading journal into memory.");
 
             mj.Dispose();
         }
