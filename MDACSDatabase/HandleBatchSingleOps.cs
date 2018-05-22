@@ -1,7 +1,6 @@
 ﻿using MDACS.API.Requests;
 using MDACS.API.Responses;
 using MDACS.Server;
-using MDACSAPI;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -56,9 +55,9 @@ namespace MDACS.Database
                         }
                         catch (Exception ex)
                         {
-                            Logger.WriteDebugString(
-                                $"Failed during batch single operation. The SID was {sid}. The field name was {field_name}. The value was {value}. The error was:\n{ex}"
-                            );
+                            //Logger.WriteDebugString(
+                            //    $"Failed during batch single operation. The SID was {sid}. The field name was {field_name}. The value was {value}. The error was:\n{ex}"
+                            //);
                             failed.Add(new BatchSingleOp()
                             {
                                 field_name = field_name,

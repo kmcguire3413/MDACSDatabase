@@ -1,5 +1,4 @@
 ﻿using MDACS.Server;
-using MDACSAPI;
 using Newtonsoft.Json;
 using System;
 using System.IO;
@@ -38,7 +37,7 @@ namespace MDACS.Database
             Item item;
 
 #if DEBUG
-            Logger.WriteDebugString($"sreq.security_id={sreq.security_id}");
+            //Logger.WriteDebugString($"sreq.security_id={sreq.security_id}");
 #endif
 
             try
@@ -55,7 +54,7 @@ namespace MDACS.Database
             catch (Exception ex)
             {
 #if DEBUG
-                Logger.WriteDebugString($"Exception on getting item was:\n{ex}");
+                //Logger.WriteDebugString($"Exception on getting item was:\n{ex}");
 #endif
                 await encoder.WriteQuickHeader(500, "Error");
                 await encoder.BodyWriteSingleChunk("");
@@ -69,7 +68,7 @@ namespace MDACS.Database
             if (!Helpers.CanUserModifyItem(auth_resp.user, item))
             {
 #if DEBUG
-                Logger.WriteDebugString($"User was not authorized to write to item.");
+                //Logger.WriteDebugString($"User was not authorized to write to item.");
 #endif
                 await encoder.WriteQuickHeader(403, "Not Authorized");
                 await encoder.BodyWriteSingleChunk("");
@@ -94,7 +93,7 @@ namespace MDACS.Database
                     field.SetValue(item, pair.Value.ToObject(field.FieldType));
 
 #if DEBUG
-                    Logger.WriteDebugString($"Set field {field} of {sreq.meta} to {pair.Value.ToString()}.");
+                    //Logger.WriteDebugString($"Set field {field} of {sreq.meta} to {pair.Value.ToString()}.");
 #endif                    
                 }
 
@@ -103,7 +102,7 @@ namespace MDACS.Database
                 if (!await shandler.WriteItemToJournal(item))
                 {
 #if DEBUG
-                    Logger.WriteDebugString($"Error happened when writing to the journal for a commit set operation.");
+                    //Logger.WriteDebugString($"Error happened when writing to the journal for a commit set operation.");
 #endif
                     await encoder.WriteQuickHeader(500, "Error");
                     await encoder.BodyWriteSingleChunk("");
@@ -113,7 +112,7 @@ namespace MDACS.Database
             catch (Exception)
             {
 #if DEBUG
-                Logger.WriteDebugString($"Error happened when writing to journal or setting item fields during commit set operation.");
+                //Logger.WriteDebugString($"Error happened when writing to journal or setting item fields during commit set operation.");
 #endif
                 await encoder.WriteQuickHeader(500, "Error");
                 await encoder.BodyWriteSingleChunk("");

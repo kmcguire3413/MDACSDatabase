@@ -1,6 +1,4 @@
-﻿#define DOUBLE_ENDED_STREAM_DEBUG
-
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using System.Text;
 using System.IO;
@@ -11,7 +9,6 @@ using System.Threading;
 using System.Security.Cryptography;
 using static MDACS.API.Database;
 using Newtonsoft.Json.Linq;
-using MDACSAPI;
 using System.Net;
 using static MDACS.API.Auth;
 using System.Diagnostics;
@@ -272,7 +269,7 @@ namespace MDACS.Database
                 }
                 catch (IOException ex)
                 {
-                    Logger.WriteCriticalString($"WriteItemToJournalAssured had an I/O exception as follows:\n{ex}\nFor:\n{meta}");
+                    //Logger.WriteCriticalString($"WriteItemToJournalAssured had an I/O exception as follows:\n{ex}\nFor:\n{meta}");
                 } finally
                 {
                     journal_semaphore.Release();

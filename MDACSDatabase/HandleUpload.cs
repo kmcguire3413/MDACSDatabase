@@ -1,6 +1,5 @@
 ﻿using MDACS.Database;
 using MDACS.Server;
-using MDACSAPI;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
@@ -156,7 +155,7 @@ namespace MDACS.Database
             try
             {
 #if DEBUG
-                Logger.WriteDebugString($"Opening {temp_data_node_path} as temporary output for upload.");
+                //Logger.WriteDebugString($"Opening {temp_data_node_path} as temporary output for upload.");
 #endif
                 fp = File.Open(temp_data_node_path, FileMode.Create);
                 await fp.WriteAsync(buf, 0, bufndx);
@@ -190,7 +189,7 @@ namespace MDACS.Database
                 fhash_sha512 = hasher.Hash;
 
 #if DEBUG
-                Logger.WriteDebugString($"Wrote {total} bytes to {temp_data_node_path} as temporary output for upload.");
+                //Logger.WriteDebugString($"Wrote {total} bytes to {temp_data_node_path} as temporary output for upload.");
 #endif
 
                 await body.CopyToAsync(fp);
@@ -206,7 +205,7 @@ namespace MDACS.Database
                 }
 
 #if DEBUG
-                Logger.WriteDebugString($"Exception on {temp_data_node_path} with:\n{ex}");
+                //Logger.WriteDebugString($"Exception on {temp_data_node_path} with:\n{ex}");
 #endif
 
                 File.Delete(temp_data_node_path);
@@ -217,7 +216,7 @@ namespace MDACS.Database
             }
 
 #if DEBUG
-            Logger.WriteDebugString($"Upload for {temp_data_node_path} is done.");
+            //Logger.WriteDebugString($"Upload for {temp_data_node_path} is done.");
 #endif
 
             if (!await WaitForFileSizeMatch(temp_data_node_path, (long)hdr.datasize, 3))

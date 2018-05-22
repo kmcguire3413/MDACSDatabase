@@ -1,6 +1,5 @@
 ﻿using MDACS.API.Responses;
 using MDACS.Server;
-using MDACSAPI;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -62,7 +61,7 @@ namespace MDACS.Database
             }
             catch (Exception ex)
             {
-                Logger.WriteCriticalString($"Error during configuration enumeration as follows:\n{ex}");
+                //Logger.WriteCriticalString($"Error during configuration enumeration as follows:\n{ex}");
 
                 return encoder.Response(500, "Error").SendNothing();
             }

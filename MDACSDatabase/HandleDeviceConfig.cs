@@ -1,7 +1,6 @@
 ﻿using MDACS.API.Requests;
 using MDACS.API.Responses;
 using MDACS.Server;
-using MDACSAPI;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
@@ -27,7 +26,7 @@ namespace MDACS.Database
 
             var buf_utf8 = Encoding.UTF8.GetString(buf, 0, ndx);
 
-            Logger.WriteDebugString($"buf_utf8={buf_utf8}");
+            //Logger.WriteDebugString($"buf_utf8={buf_utf8}");
 
             var req = JsonConvert.DeserializeObject<DeviceConfigRequest>(buf_utf8);
 
@@ -49,7 +48,7 @@ namespace MDACS.Database
                 _fp.Dispose();
             }
 
-            Logger.WriteDebugString($"The config path is {path}.");
+            //Logger.WriteDebugString($"The config path is {path}.");
 
             var fp = File.OpenRead(
                 path

@@ -12,7 +12,6 @@ using System.Threading;
 using System.Net.Security;
 using MDACS.Server;
 using Newtonsoft.Json.Linq;
-using MDACSAPI;
 using System.Diagnostics;
 
 namespace MDACS.Database
@@ -47,7 +46,7 @@ namespace MDACS.Database
             }
 
             // Attach a handler for logger events.
-            Logger.handler_event += LoggerOutput;
+            //Logger.handler_event += LoggerOutput;
 
             if (!File.Exists(args[0]))
             {
